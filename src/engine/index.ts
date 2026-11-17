@@ -48,7 +48,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   const renderer = new WebGLRenderer({ antialias: options.settings.quality !== 'low' });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.domElement.tabIndex = 0;
-  renderer.domElement.setAttribute('aria-label', 'BarrelRoll surfing game');
+  renderer.domElement.setAttribute('aria-label', 'BarrelRoll penguin surfing game');
   renderer.domElement.style.display = 'block';
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
@@ -63,7 +63,8 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   const waveVisual = new WaveVisual(simulation.wave, options.map.visual.waterColor,
     options.map.visual.foamColor);
   const surfer = new SurferVisual(options.settings, options.map.visual.foamColor);
-  scene.add(waveVisual.mesh, surfer.group);
+  scene.add(waveVisual.mesh, waveVisual.lipMesh, waveVisual.impactFoam,
+    waveVisual.curlSpray, surfer.group);
   surfer.addSprayTo(scene);
   let environment: EnvironmentHandle;
   try {
@@ -84,6 +85,8 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   let lastFrameMs: number | null = null;
   let accumulatorS = 0;
   let cameraReady = false;
+  let focusReady = false;
+  const cameraFocus = new Vector3();
 
   const size = () => {
     const width = Math.max(1, options.mount.clientWidth || window.innerWidth);
@@ -120,25 +123,38 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     const airHeight = Math.max(0, rider.y - simulation.wave.surfaceAt(simulation.alongM,
       rider.x, simulation.simulationTimeS).position.y);
     const inBarrel = simulation.state === 'barrel';
-    const distance = inBarrel ? 4.2 : 8 + Math.min(4, airHeight * 0.22);
-    const height = inBarrel ? 1.4 : 3.2 + Math.min(2, airHeight * 0.13);
-    const desired = rider.clone().addScaledVector(heading, -distance);
-    desired.y += height;
+    const onWall = simulation.wallRideActive;
+    const barrel = inBarrel ? simulation.wave.barrelAt(simulation.alongM, 0, 0,
+      simulation.simulationTimeS) : null;
+    const distance = barrel ? onWall ? 7 : 5.3 : 8 + Math.min(4, airHeight * 0.22);
+    const desired = barrel ?
+      new Vector3(barrel.centerX, barrel.centerY - Math.min(0.5, barrel.radiusM * 0.2), rider.z)
+        .addScaledVector(new Vector3(0, 0, simulation.wave.direction), -distance) :
+      rider.clone().addScaledVector(heading, -distance);
+    if (!barrel) desired.y += 3.2 + Math.min(2, airHeight * 0.13);
     if (!cameraReady) {
       camera.position.copy(desired);
       cameraReady = true;
     } else camera.position.lerp(desired, 1 - Math.exp(-6 * Math.max(0, frameDtS)));
     // Look ahead mainly along the wave. Leading the lateral heading by several
     // meters made a rightward carve appear to move left on screen.
-    const target = rider.clone().addScaledVector(
-      new Vector3(0, 0, simulation.wave.direction), inBarrel ? 4 : 5,
-    );
-    target.x += heading.x * 0.45;
-    target.y += inBarrel ? 1.2 : 1.4;
+    const target = barrel ?
+      new Vector3(barrel.centerX, barrel.centerY + 0.15,
+        rider.z + simulation.wave.direction * 7) :
+      rider.clone().addScaledVector(new Vector3(0, 0, simulation.wave.direction), 5);
+    if (!barrel) {
+      target.x += heading.x * 0.45;
+      target.y += 1.4;
+    }
+    if (!focusReady) {
+      cameraFocus.copy(target);
+      focusReady = true;
+    } else cameraFocus.lerp(target, 1 - Math.exp(-8 * Math.max(0, frameDtS)));
     camera.up.set(0, 1, 0);
-    camera.lookAt(target);
+    camera.lookAt(cameraFocus);
     const fov = settings.reducedMotion ? 65 :
-      63 + Math.min(9, simulation.speedMps * 0.25) + Math.min(5, airHeight * 0.3);
+      63 + Math.min(9, simulation.speedMps * 0.25) + Math.min(5, airHeight * 0.3) +
+      (inBarrel ? 3 : 0);
     if (Math.abs(camera.fov - fov) > 0.05) {
       camera.fov = fov;
       camera.updateProjectionMatrix();
@@ -197,6 +213,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     lastFrameMs = null;
     paused = false;
     cameraReady = false;
+    focusReady = false;
     renderer.domElement.focus();
     schedule();
   };

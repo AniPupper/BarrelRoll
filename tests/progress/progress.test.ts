@@ -18,7 +18,7 @@ let nextRun = 0;
 function run(patch: Partial<RunResult> = {}): RunResult {
   return {
     runId: `run-${++nextRun}`,
-    mapId: 'bells',
+    mapId: 'mavericks',
     mode: 'free-surf',
     score: 0,
     durationS: 20,
@@ -35,11 +35,11 @@ function run(patch: Partial<RunResult> = {}): RunResult {
 test('all 18 challenges use result metrics and Score Run gates', () => {
   const store = createProgressStore({ storage: new MemoryStorage() });
   assert.equal(store.challenges.length, 18);
-  const first = store.recordResult(run({ cleanLandings: 3, largestLandedSpinDeg: 360, score: 5000 }));
-  assert.deepEqual(first.newMedalIds, ['bells-clean-3', 'bells-spin-360']);
+  const first = store.recordResult(run({ cleanLandings: 3, longestBarrelS: 4, score: 5000 }));
+  assert.deepEqual(first.newMedalIds, ['mavericks-clean-3', 'mavericks-barrel-4']);
   assert.equal(first.snapshot.earnedMedalIds.length, 2);
   const second = store.recordResult(run({ mode: 'score-run', score: 2000, reason: 'timer' }));
-  assert.deepEqual(second.newMedalIds, ['bells-score-2000']);
+  assert.deepEqual(second.newMedalIds, ['mavericks-score-2000']);
   assert.deepEqual(second.newBoardColors, ['#48c9b0']);
 });
 
@@ -53,9 +53,9 @@ test('records are independent by map and mode, and duplicate results do nothing'
   const duplicate = store.recordResult(free);
   assert.equal(duplicate.duplicate, true);
   assert.deepEqual(duplicate.newMedalIds, []);
-  assert.equal(store.getSnapshot().bestRuns.bells?.['free-surf']?.score, 9000);
-  assert.equal(store.getSnapshot().bestRuns.bells?.['score-run']?.score, 2500);
-  assert.equal(createProgressStore({ storage }).getSnapshot().bestRuns.bells?.['score-run']?.score, 2500);
+  assert.equal(store.getSnapshot().bestRuns.mavericks?.['free-surf']?.score, 9000);
+  assert.equal(store.getSnapshot().bestRuns.mavericks?.['score-run']?.score, 2500);
+  assert.equal(createProgressStore({ storage }).getSnapshot().bestRuns.mavericks?.['score-run']?.score, 2500);
 });
 
 test('corrupt saves recover; unknown fields are ignored', () => {
@@ -76,7 +76,7 @@ test('storage failure preserves playable in-memory progress and reports the warn
   const store = createProgressStore({ storage });
   const result = store.recordResult(run({ cleanLandings: 3 }));
   assert.equal(result.snapshot.storageAvailable, false);
-  assert.deepEqual(result.newMedalIds, ['bells-clean-3']);
+  assert.deepEqual(result.newMedalIds, ['mavericks-clean-3']);
   assert.equal(store.getSnapshot().earnedMedalIds.length, 1);
 });
 
@@ -96,7 +96,7 @@ test('settings validate locked colors, persist, and reset only the game key', ()
 
 test('all challenge thresholds are evaluable and unlock every cosmetic color', () => {
   const store = createProgressStore({ storage: new MemoryStorage() });
-  for (const mapId of ['bells', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare'] as const) {
+  for (const mapId of ['mavericks', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare'] as const) {
     store.recordResult(run({ mapId, mode: 'score-run', reason: 'timer', score: 10000,
       bestCombo: 10000, longestBarrelS: 10, largestLandedSpinDeg: 1080,
       cleanLandings: 10 }));

@@ -2,7 +2,7 @@ import type { TrickInput } from '../shared/contracts';
 
 export interface ControlFrame {
   steer: -1 | 0 | 1;
-  throttle: -1 | 0 | 1;
+  wallRide: -1 | 0 | 1;
   jumpChargeS: number | null;
   trick: TrickInput;
 }
@@ -61,7 +61,7 @@ export class GameplayInput {
     this.releasedChargeS = null;
     return {
       steer: axis(this.held.has('a'), this.held.has('d')),
-      throttle: axis(this.held.has('s'), this.held.has('w')),
+      wallRide: axis(this.held.has('a'), this.held.has('d')),
       jumpChargeS,
       trick: {
         spinAxis: axis(this.held.has('a'), this.held.has('d')),

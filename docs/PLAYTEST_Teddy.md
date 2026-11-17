@@ -4,30 +4,36 @@ Date: November 17, 2026
 
 Device: local macOS development machine
 
-Browser: user opened the temporary Codex preview; browser version not captured.
-Agent-side visual inspection was unavailable.
+Browser: the user opened the temporary Codex preview; browser version was not captured. Agent-side visual inspection was unavailable.
 
 | Steps | Expected | Actual |
 | --- | --- | --- |
-| Run the engine and progression test files with Node 22.20.0 | Wave validation, barrel entry/exit/closeout, input masking, steering, scoring, run completion, challenges, and save recovery pass | 16 automated tests passed after barrel timing and steering corrections |
-| Typecheck Teddy's source and tests with TypeScript 5.9.3 and Three.js types | No type errors at the shared API boundary | Passed |
-| Build a temporary Vite preview importing Teddy's engine | Source bundles without an app scaffold | Passed; temporary harness bundle generated |
-| Press A and D on Pipeline while watching the surfer | A moves left toward the trough; D moves right toward the lip | The user clarified that A should move left. Water and air steering were corrected on both break directions; a user retest is pending. |
-| Jump and use A/D or a fresh W/S press in the air | A visible spin or flip appears | The initial development fixture did not rotate. The temporary preview now has labeled sample rotations; Anika's actual trick module remains pending. |
-| Inspect the surfing setting | Ocean and coastline give the wave a readable setting | The initial preview lacked scenery. A placeholder ocean and coast were added to the temporary preview; Anika's final environment remains pending. |
-| Pump with W and steer right with D toward Pipeline's tube for about 1 second in a fixed-step simulation | The 6-second medal target and a clean exit are possible before closeout | Longest barrel 7.35 s, 1,402 banked points, no wipeout |
-| Hold a Teahupoo-sized tube through 3.5 s of its 4.5 s closeout | The 3.5-second medal target remains physically possible | The occupancy query still reports inside at 3.5 s |
-| Integrate Anika's real trick controller, maps, and UI | One landed trick, a clean barrel exit, Score Run results, and saved medals appear in the app | Pending: those modules and the app scaffold are not yet in this repository |
+| Run engine and progression checks with Node 22.20.0 | Wave, barrel, input, scoring, save, and challenge rules pass | 22 automated tests passed, including Mavericks wave silhouette, responsive steering, automatic speed, a clean four-second barrel exit, and a full inner-wall loop |
+| Typecheck Teddy's source and tests with TypeScript 5.9.3 and Three.js types | No shared API type errors | Passed |
+| Build a temporary Vite preview importing the engine and Mavericks scenery | Source bundles without a production app scaffold | Passed; temporary harness bundle generated |
+| Press A/D and jump in the earlier Pipeline preview | A moves left, D moves right; surfing responds naturally | The user confirmed the corrected controls felt good and the surfing mechanic was much better before the Mavericks changes |
+| Jump and use A/D or a fresh W/S press in the air | A visible spin or flip appears | The temporary preview has labeled sample rotations; Anika's actual trick module remains pending |
+| Steer toward the Mavericks opening tube for 1.75 s in a fixed-step simulation, then release | The four-second medal target and a clean exit are possible with wave-driven speed | The simulated ride reached over ten seconds in the barrel, banked points, and had no wipeout |
+| Hold W while on the wave in the fixed-step simulation | W does not change forward speed | Speed matched an otherwise identical ride with no W input; the wave changed speed automatically |
+| Hold A while approaching the Mavericks barrel | The board loops around the tube and can reverse with D or settle back onto the face | The user could not trigger the earlier fresh-press version. The control now begins a loop from a nearby line while A stays held; a keyboard-path simulation completed a full turn with no wipeout, and user retest is pending |
+| Inspect the first wall-ride preview at the top of the loop | The camera stays within the tube and the wave reads as a barrel | The user reported an awkward top-of-loop camera and an odd-looking tube. The camera now tracks the hollow's center and the lip pitches farther down toward the wave face; a retest is pending |
+| Inspect the revised barrel after reference review | A hollow opening, thin falling lip, and open shoulder are easy to read | The user said the earlier version still looked like a water mass. The first Mavericks tube is wider, its exit tapers, and its lip is rendered separately with partial translucency; a retest of this newest version is pending |
+| Check the simplified loop control and barrel silhouette | Holding A loops without a precise key sequence; the wave reads as a hollow arch | The user confirmed the loop now works but still saw a water mass. The face was reshaped to rise steeply into the crest and the lip lowered toward the face; visual retest pending |
+| Check the full wave redesign | A wave rises from the ocean, pitches into a hollow tube, and peels down to a lower open shoulder | The user still reported a solid mass after the previous profile change. The latest version reshapes the full face and lip together, adds a surface foam line and moving water highlights to both the wave and surrounding sea, and retains the loop in simulation; user visual retest pending |
+| Inspect the new rider and board | A penguin rides a surfboard made of ice | Replaced the development rider and board with an original penguin model and a translucent, faceted ice board; visual retest pending |
+| Inspect the refreshed Mavericks beach, bluff, camera, barrel, and carve feel | The level looks and feels like a surfing location | Pending user playtest of the refreshed preview |
+| Integrate Anika's real trick controller, five remaining maps, and UI | A real landed trick, Score Run results, and saved medals appear in the app | Pending: those modules and the production app scaffold are not yet in this repository |
 
 ## Integration checks still needed
 
-1. On Mac and Windows browsers, ride Bells and Pipeline for 30 seconds, carve and jump with WASD and Space, then confirm that a held W does not start a flip until pressed again in the air.
-2. Ride through a tube and beside it. Check the HUD timer and that the lip's visible opening agrees with the collision and closeout.
-3. Land a real 720 and wipe out. Confirm one landing report per air, banked score preservation, and pending combo loss.
-4. Pause and resume, restart, finish Free Surf, and complete a 120-second Score Run. Confirm one final result and that pause freezes the timer.
-5. Reload and check records by map and mode, all 18 medal targets, unlocks at 3/6/12 medals, settings, and reset confirmation in Anika's UI.
-6. Compare 30/60/120 FPS caps and repeat on all six maps once the integrated build exists. Tune goals that prove impossible or tedious.
+1. On Mac and Windows browsers, ride Mavericks and Pipeline for 30 seconds. Check A/D carving, jump with Space, and confirm that W/S do not change speed on the wave but flip after a fresh press in the air.
+2. Ride through a tube and beside it. In Mavericks, hold A while approaching the first tube for a full loop, reverse with D, then release to return to the face. Check that the visible curl, board path, barrel timer, and closeout agree.
+3. Inspect Mavericks' beach and bluffs from the board, especially whether the sea and shore meet cleanly and the camera keeps the exit in view.
+4. Land a real 720 and wipe out. Confirm one landing report per air, banked score preservation, and pending combo loss.
+5. Pause and resume, restart, finish Free Surf, and complete a 120-second Score Run. Confirm one final result and that pause freezes the timer.
+6. Reload and check records by map and mode, all 18 medal targets, unlocks at 3/6/12 medals, settings, and reset confirmation in Anika's UI.
+7. Compare 30/60/120 FPS caps and repeat on all six maps once the integrated build exists. Tune goals that prove impossible or tedious.
 
-The automated challenge checks prove that each rule can be evaluated from `RunResult`. They do not establish that every threshold is reachable in actual play.
+The automated challenge checks prove that each rule can be evaluated from `RunResult`. The Mavericks and Pipeline barrel goals were also reached by fixed-step simulation. Other goals still need playtesting with the merged maps and real trick controller.
 
-The temporary preview contains Teddy's wave and surfer with a development-only trick fixture and placeholder scenery. It does not contain Anika's actual tricks, environments, menus, or game HUD. Its appearance and the camera change need a direct user retest before release.
+The temporary preview contains Teddy's wave, penguin, ice board, Mavericks scenery, and a development-only trick fixture. It does not contain Anika's actual tricks, menus, or game HUD. The revised wave appearance still needs a direct user retest before release.

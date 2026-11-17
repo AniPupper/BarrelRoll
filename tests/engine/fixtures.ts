@@ -6,7 +6,7 @@ export const pipeline: MapDefinition = {
     breakDirection: 'left', heightM: 7, faceWidthM: 12, rideLengthM: 360,
     peelSpeedMps: 14,
     barrelSections: [{ start01: 0.2, end01: 0.7, radiusM: 1.8,
-      closeAfterEntryS: 9 }],
+      closeAfterEntryS: 14 }],
     launchSections: [{ start01: 0.75, end01: 0.9, liftMultiplier: 1.2 }],
   },
   spawn: { along01: 0.05, face01: 0.35 },

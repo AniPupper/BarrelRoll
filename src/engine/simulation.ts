@@ -27,6 +27,21 @@ const cross = (a: Vec3, b: Vec3): Vec3 => ({
   z: a.x * b.y - a.y * b.x,
 });
 const dot = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z;
+const smoothstep = (value: number) => {
+  const x = clamp(value, 0, 1);
+  return x * x * (3 - 2 * x);
+};
+
+function rolledOrientation(base: Quat, angle: number): Quat {
+  const s = Math.sin(angle / 2);
+  const c = Math.cos(angle / 2);
+  return {
+    x: base.x * c + base.y * s,
+    y: base.y * c - base.x * s,
+    z: base.z * c + base.w * s,
+    w: base.w * c - base.z * s,
+  };
+}
 
 function waterOrientation(normal: Vec3, travel: Vec3): Quat {
   const forward = normalize({
@@ -85,6 +100,8 @@ export class SurfSimulation {
   simulationTimeS = 0;
   elapsedS = 0;
   barrelS = 0;
+  wallRideActive = false;
+  wallRideAngle = 0;
   trickLabel = '';
   currentRunId = '';
   activeAirId: string | null = null;
@@ -94,6 +111,9 @@ export class SurfSimulation {
   private airQualified = false;
   private wipeoutRemainingS = 0;
   private barrelSectionIndex: number | null = null;
+  private wallRideAngularSpeed = 0;
+  private wallRideElapsedS = 0;
+  private wallRideEntry: Vec3 | null = null;
   private lastHudS = -Infinity;
 
   constructor(map: MapDefinition, mode: Mode, seed: number, trick: TrickController,
@@ -119,7 +139,7 @@ export class SurfSimulation {
     this.alongM = this.map.spawn.along01 * this.map.wave.rideLengthM;
     this.simulationTimeS = 0;
     this.elapsedS = 0;
-    this.speedMps = Math.max(5, this.map.wave.peelSpeedMps * 0.8);
+    this.speedMps = Math.max(5, this.map.wave.peelSpeedMps * 1.06);
     this.lateralMps = 0;
     this.verticalMps = 0;
     const x = this.map.spawn.face01 * this.map.wave.faceWidthM;
@@ -130,6 +150,7 @@ export class SurfSimulation {
     this.state = 'surfing';
     this.barrelS = 0;
     this.barrelSectionIndex = null;
+    this.stopWallRide();
     this.trickLabel = '';
     this.activeAirId = null;
     this.airCounter = 0;
@@ -181,6 +202,7 @@ export class SurfSimulation {
     this.activeAirId = null;
     this.barrelSectionIndex = null;
     this.barrelS = 0;
+    this.stopWallRide();
     this.metrics.wipeouts++;
     this.state = 'wipeout';
     this.wipeoutRemainingS = 1.35;
@@ -195,14 +217,143 @@ export class SurfSimulation {
       z: this.wave.direction * Math.max(1, this.speedMps) });
   }
 
+  private stopWallRide(): void {
+    this.wallRideActive = false;
+    this.wallRideAngle = 0;
+    this.wallRideAngularSpeed = 0;
+    this.wallRideElapsedS = 0;
+    this.wallRideEntry = null;
+  }
+
+  private updateWaveSpeed(dtS: number): void {
+    const face = this.position.x / this.map.wave.faceWidthM;
+    const wavePulse = 0.06 * Math.sin(this.wave.along01(this.alongM) * Math.PI * 4 +
+      this.wave.phase - this.simulationTimeS * 0.12);
+    const downhillCarve = Math.max(0, -this.lateralMps) * 0.28;
+    const uphillCarve = Math.max(0, this.lateralMps) * 0.12;
+    const targetSpeed = this.map.wave.peelSpeedMps * (1.08 + face * 0.16 + wavePulse) +
+      downhillCarve - uphillCarve;
+    this.speedMps += (targetSpeed - this.speedMps) * (1 - Math.exp(-1.5 * dtS));
+    this.speedMps = clamp(this.speedMps, this.map.wave.peelSpeedMps * 0.7,
+      this.map.wave.peelSpeedMps * 1.5);
+  }
+
+  private leaveBarrelWall(): void {
+    const index = this.barrelSectionIndex;
+    const section = index === null ? null : this.map.wave.barrelSections[index];
+    if (section && index !== null && this.barrelS >= 0.3 &&
+        this.wave.along01(this.alongM) >= section.end01 - this.wave.exitTaper01(index) &&
+        this.wave.openFraction(index, this.simulationTimeS) > 0.24) {
+      this.score.addBarrel(this.barrelS, this.elapsedS);
+      this.trickLabel = 'Barrel exit';
+    } else this.trickLabel = 'Barrel lost';
+    this.barrelS = 0;
+    this.barrelSectionIndex = null;
+    this.stopWallRide();
+    this.state = 'surfing';
+    const surface = this.wave.surfaceAt(this.alongM,
+      clamp(this.position.x, 0.2, this.wave.joinX - 0.08), this.simulationTimeS);
+    this.position = surface.position;
+    this.orientation = waterOrientation(surface.normal, this.heading);
+  }
+
+  private moveOnBarrelWall(frame: ControlFrame, dtS: number): void {
+    this.updateWaveSpeed(dtS);
+    this.alongM += this.speedMps * dtS;
+    const barrel = this.wave.barrelAt(this.alongM, 0, 0, this.simulationTimeS);
+    if (!barrel || barrel.sectionIndex !== this.barrelSectionIndex) {
+      this.leaveBarrelWall();
+      return;
+    }
+    if (barrel.openFraction <= 0.24) {
+      this.wipeout('The barrel closed');
+      return;
+    }
+    if (barrel.radiusM < 1.0) {
+      this.leaveBarrelWall();
+      return;
+    }
+    const wallAxis = -frame.wallRide * this.wave.direction;
+    const nearestFloor = Math.round(this.wallRideAngle / (Math.PI * 2)) * Math.PI * 2;
+    const targetAngularSpeed = wallAxis === 0 ?
+      clamp((nearestFloor - this.wallRideAngle) * 4, -3.6, 3.6) : wallAxis * 4.1;
+    this.wallRideAngularSpeed += (targetAngularSpeed - this.wallRideAngularSpeed) *
+      (1 - Math.exp(-7 * dtS));
+    const oldAngle = this.wallRideAngle;
+    this.wallRideAngle += this.wallRideAngularSpeed * dtS;
+    this.wallRideElapsedS += dtS;
+    const finishedTurns = Math.floor(Math.abs(this.wallRideAngle) / (Math.PI * 2));
+    if (finishedTurns > Math.floor(Math.abs(oldAngle) / (Math.PI * 2))) {
+      this.trickLabel = 'Barrel loop';
+    } else if (this.trickLabel !== 'Barrel loop') this.trickLabel = 'Riding the wall';
+
+    const centerSurface = this.wave.surfaceAt(this.alongM, barrel.centerX,
+      this.simulationTimeS);
+    const orbitRadius = Math.min(2.1, barrel.radiusM * 0.72);
+    const orbitCenterY = centerSurface.position.y + orbitRadius;
+    const orbitX = barrel.centerX + orbitRadius * Math.sin(this.wallRideAngle);
+    const orbitY = orbitCenterY - orbitRadius * Math.cos(this.wallRideAngle);
+    const blend = smoothstep(this.wallRideElapsedS / 0.23);
+    const entry = this.wallRideEntry ?? this.position;
+    const x = clamp(entry.x + (orbitX - entry.x) * blend, 0.2, this.wave.joinX - 0.08);
+    const y = entry.y + (orbitY - entry.y) * blend;
+    this.position = { x, y, z: this.wave.direction * this.alongM };
+    this.lateralMps = 0;
+    this.travelHeading();
+    const surface = this.wave.surfaceAt(this.alongM, x, this.simulationTimeS);
+    this.orientation = rolledOrientation(waterOrientation(surface.normal, this.heading),
+      this.wallRideAngle * this.wave.direction);
+    this.barrelS += dtS;
+    this.metrics.longestBarrelS = Math.max(this.metrics.longestBarrelS, this.barrelS);
+    this.state = 'barrel';
+
+    if (frame.jumpChargeS !== null) {
+      this.stopWallRide();
+      this.takeoff(frame.jumpChargeS);
+      return;
+    }
+    if (wallAxis === 0 && Math.abs(this.wallRideAngle - nearestFloor) < 0.035 &&
+        Math.abs(this.wallRideAngularSpeed) < 0.12) {
+      this.stopWallRide();
+      this.position = surface.position;
+      this.orientation = waterOrientation(surface.normal, this.heading);
+      this.trickLabel = 'In the barrel';
+    }
+  }
+
   private moveOnWave(frame: ControlFrame, dtS: number): void {
-    const maxSpeed = Math.max(18, this.map.wave.peelSpeedMps * 1.65);
-    const acceleration = frame.throttle === 1 ? 4.3 : frame.throttle === -1 ? -7.5 : 0;
-    const carveDrag = Math.abs(this.lateralMps) * 0.11;
-    this.speedMps = clamp(this.speedMps + (acceleration - 0.38 - carveDrag) * dtS, 2.5, maxSpeed);
-    this.lateralMps -= frame.steer * this.wave.direction * 9 * dtS;
-    this.lateralMps *= Math.exp(-(frame.steer === 0 ? 3.2 : 0.9) * dtS);
-    this.lateralMps = clamp(this.lateralMps, -6.5, 6.5);
+    if (this.wallRideActive) {
+      this.moveOnBarrelWall(frame, dtS);
+      return;
+    }
+    if (-frame.wallRide * this.wave.direction > 0) {
+      const barrel = this.wave.barrelAt(this.alongM, this.position.x,
+        this.position.y + 0.85, this.simulationTimeS);
+      const section = barrel && this.map.wave.barrelSections[barrel.sectionIndex];
+      const nearHollow = barrel && Math.hypot(this.position.x - barrel.centerX,
+        this.position.y + 0.85 - barrel.centerY) <= barrel.radiusM * 1.25;
+      if (barrel && nearHollow && section && barrel.radiusM >= 1.6 &&
+          barrel.openFraction > 0.24 &&
+          (section.end01 * this.map.wave.rideLengthM - this.alongM) > this.speedMps * 2.5) {
+        if (this.barrelSectionIndex !== barrel.sectionIndex) {
+          this.barrelSectionIndex = barrel.sectionIndex;
+          this.barrelS = 0;
+          this.wave.enterSection(barrel.sectionIndex, this.simulationTimeS);
+        }
+        this.wallRideActive = true;
+        this.wallRideEntry = { ...this.position };
+        this.wallRideAngle = 0;
+        this.wallRideAngularSpeed = 0;
+        this.wallRideElapsedS = 0;
+        this.moveOnBarrelWall(frame, dtS);
+        return;
+      }
+    }
+    this.updateWaveSpeed(dtS);
+    const carveSpeed = clamp(this.speedMps * 0.38, 5.8, 8.8);
+    const lateralTarget = -frame.steer * this.wave.direction * carveSpeed;
+    const response = frame.steer === 0 ? 10 : 8;
+    this.lateralMps += (lateralTarget - this.lateralMps) * (1 - Math.exp(-response * dtS));
     this.alongM += this.speedMps * dtS;
     const x = clamp(this.position.x + this.lateralMps * dtS, 0.2, this.wave.joinX - 0.08);
     if (x <= 0.2 || x >= this.wave.joinX - 0.08) this.lateralMps = 0;
@@ -229,14 +380,18 @@ export class SurfSimulation {
       this.barrelS += dtS;
       if (this.barrelS >= 0.3) {
         this.state = 'barrel';
+        this.trickLabel = 'In the barrel';
         this.metrics.longestBarrelS = Math.max(this.metrics.longestBarrelS, this.barrelS);
       }
     } else if (this.barrelSectionIndex !== null) {
       const section = this.map.wave.barrelSections[this.barrelSectionIndex];
-      const exitFade = Math.min(0.025, (section.end01 - section.start01) * 0.18);
+      const exitFade = this.wave.exitTaper01(this.barrelSectionIndex);
       if (this.barrelS >= 0.3 && this.wave.along01(this.alongM) >= section.end01 - exitFade &&
           this.wave.openFraction(this.barrelSectionIndex, this.simulationTimeS) > 0.24) {
         this.score.addBarrel(this.barrelS, this.elapsedS);
+        this.trickLabel = 'Barrel exit';
+      } else if (this.barrelS >= 0.3) {
+        this.trickLabel = 'Barrel lost';
       }
       this.barrelS = 0;
       this.barrelSectionIndex = null;
@@ -248,6 +403,7 @@ export class SurfSimulation {
   }
 
   private takeoff(chargeS: number): void {
+    this.stopWallRide();
     const launch = this.wave.launchMultiplier(this.alongM);
     const lip = this.position.x >= this.map.wave.faceWidthM * 0.70;
     const fast = this.speedMps >= this.map.wave.peelSpeedMps * 0.8;
@@ -263,9 +419,9 @@ export class SurfSimulation {
   }
 
   private moveInAir(frame: ControlFrame, dtS: number): void {
-    this.lateralMps -= frame.steer * this.wave.direction * 3.2 * dtS;
-    this.lateralMps *= Math.exp(-0.28 * dtS);
-    this.lateralMps = clamp(this.lateralMps, -6.5, 6.5);
+    const airTarget = -frame.steer * this.wave.direction * Math.min(4.2, this.speedMps * 0.18);
+    this.lateralMps += (airTarget - this.lateralMps) *
+      (1 - Math.exp(-(frame.steer === 0 ? 3.5 : 2.5) * dtS));
     this.speedMps = Math.max(2.5, this.speedMps - 0.18 * dtS);
     this.alongM += this.speedMps * dtS;
     const x = clamp(this.position.x + this.lateralMps * dtS, 0.2, this.wave.joinX - 0.08);
@@ -347,6 +503,7 @@ export class SurfSimulation {
     this.verticalMps = 0;
     this.barrelS = 0;
     this.barrelSectionIndex = null;
+    this.stopWallRide();
     this.state = 'surfing';
     this.trickLabel = '';
     const x = this.map.spawn.face01 * this.map.wave.faceWidthM;
@@ -393,6 +550,7 @@ export class SurfSimulation {
     this.activeAirId = null;
     this.barrelSectionIndex = null;
     this.barrelS = 0;
+    this.stopWallRide();
     const result: RunResult = {
       runId: this.currentRunId,
       mapId: this.map.id,

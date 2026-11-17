@@ -2,9 +2,9 @@ import type { ChallengeDefinition } from '../shared/contracts';
 
 // Stable IDs are save data. Rename labels freely, but retain IDs after release.
 const definitions: ChallengeDefinition[] = [
-  { id: 'bells-clean-3', mapId: 'bells', label: 'Land cleanly 3 times in one run', metric: 'cleanLandings', target: 3 },
-  { id: 'bells-spin-360', mapId: 'bells', label: 'Land a 360', metric: 'largestLandedSpinDeg', target: 360 },
-  { id: 'bells-score-2000', mapId: 'bells', label: 'Score 2,000 in Score Run', metric: 'score', target: 2000, mode: 'score-run' },
+  { id: 'mavericks-clean-3', mapId: 'mavericks', label: 'Land cleanly 3 times in one run', metric: 'cleanLandings', target: 3 },
+  { id: 'mavericks-barrel-4', mapId: 'mavericks', label: 'Ride a continuous 4-second barrel', metric: 'longestBarrelS', target: 4 },
+  { id: 'mavericks-score-2000', mapId: 'mavericks', label: 'Score 2,000 in Score Run', metric: 'score', target: 2000, mode: 'score-run' },
   { id: 'pipeline-barrel-3', mapId: 'pipeline', label: 'Ride a continuous 3-second barrel', metric: 'longestBarrelS', target: 3 },
   { id: 'pipeline-barrel-6', mapId: 'pipeline', label: 'Ride a continuous 6-second barrel', metric: 'longestBarrelS', target: 6 },
   { id: 'pipeline-combo-2500', mapId: 'pipeline', label: 'Bank a 2,500-point combo', metric: 'bestCombo', target: 2500 },

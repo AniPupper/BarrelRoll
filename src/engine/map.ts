@@ -5,7 +5,7 @@ const unit = (value: number) => Number.isFinite(value) && value >= 0 && value <=
 
 export function validateMap(map: MapDefinition): void {
   if (!map || !map.wave || !map.spawn || !map.visual ||
-      !['bells', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare'].includes(map.id) ||
+      !['mavericks', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare'].includes(map.id) ||
       typeof map.name !== 'string' || !map.name.trim() ||
       typeof map.region !== 'string' || !map.region.trim() ||
       !['easy', 'medium', 'hard', 'expert'].includes(map.difficulty) ||

@@ -1,6 +1,6 @@
 import type { Scene } from 'three';
 
-export type MapId = 'bells' | 'pipeline' | 'jbay' | 'uluwatu' | 'teahupoo' | 'nazare';
+export type MapId = 'mavericks' | 'pipeline' | 'jbay' | 'uluwatu' | 'teahupoo' | 'nazare';
 export type Mode = 'free-surf' | 'score-run';
 export type Quality = 'low' | 'medium' | 'high';
 export type RiderState = 'surfing' | 'barrel' | 'airborne' | 'wipeout';

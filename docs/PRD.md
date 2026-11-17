@@ -3,21 +3,21 @@
 **Team:** Teddy Kindler and Anika  
 **Repository:** https://github.com/AniPupper/BarrelRoll  
 **Date:** November 17, 2026  
-**Status:** Build specification; the game has not been implemented by this document.  
+**Status:** Build specification; implementation is in progress.
 **Canonical PRD:** This file replaces the two separate owner PRDs.
 
-BarrelRoll is a single-player, 3D browser surfing game inspired by [Cork 7](https://cork7.com/). Players carve across waves, ride inside curling barrels, launch from the lip, combine exaggerated spins and flips, and land back on the water. The camera follows behind the surfer. Famous surfing locations must have different wave behavior as well as different scenery.
+BarrelRoll is a single-player, 3D browser surfing game inspired by [Cork 7](https://cork7.com/). A penguin rides a surfboard made of ice, carving across waves, riding inside curling barrels, launching from the lip, combining exaggerated spins and flips, and landing back on the water. The camera follows behind the penguin. Famous surfing locations must have different wave behavior as well as different scenery.
 
-**Confirmed requirements:** desktop/laptop browser on Mac and Windows; WASD movement; Space to jump; a camera behind the surfer; exaggerated and impossible tricks; playable wave barrels; multiple famous destinations; one game built together in the same GitHub repository.
+**Confirmed requirements:** desktop/laptop browser on Mac and Windows; A/D steering, W/S air flips, and Space to jump; wave-driven forward speed; a camera behind the penguin; an ice surfboard; exaggerated and impossible tricks; playable wave barrels; multiple famous destinations, starting with Mavericks; one game built together in the same GitHub repository.
 
 **First-release defaults:** Free Surf and a 120-second Score Run; all six maps available immediately; local records, medals, and cosmetic board colors; stylized 3D art; HTML/CSS, TypeScript, Three.js, and Vite. Use one application, one renderer, one physics clock, and one lockfile. Multiplayer, accounts, online leaderboards, controller/mobile controls, video export, and full fluid simulation are later work.
 
-A new player should be surfing, jumping, and attempting a trick within a minute. Start standing on a board, without paddling or waiting for a set. The loop is build speed → choose barrel or aerial line → control the maneuver → exit or land → bank points → try a harder combination. Recover from a wipeout within two seconds.
+A new player should be surfing, jumping, and attempting a trick within a minute. Start standing on a board, without paddling or waiting for a set. The loop is choose a barrel or aerial line → carve with the wave's changing speed → control the maneuver → exit or land → bank points → try a harder combination. Recover from a wipeout within two seconds.
 
 | Work | Teddy | Anika |
 | --- | --- | --- |
 | Surfing | Movement, jumping, water contact, air trajectory, barrels, recovery | Air rotations, flips, spins, corks, trick recognition, landing assessment |
-| Presentation | Surfer/board model and animation, wave, camera, gameplay spray | Six locations, scenery, menus, HUD, audio |
+| Presentation | Penguin/ice-board model and animation, wave, camera, gameplay spray; Mavericks map and scenery | Five remaining locations, scenery, menus, HUD, audio |
 | Game systems | Runtime scoring, timer, challenges, medals, saved progress, board-color unlocks | Present scores, challenges, medals, results, and settings through the UI |
 | Integration | Engine, shared contracts, progression API | App wiring, project setup, dependencies, deployment |
 
@@ -25,33 +25,34 @@ A new player should be surfing, jumping, and attempting a trick within a minute.
 
 ## Teddy — Surfing engine, barrels, scoring, and progression
 
-You own the movement and wave foundation plus the progression system. Anika supplies the trick controller, landing evaluation, maps, environments, and UI. Integrate her modules through the interfaces in this section; do not duplicate them inside your controller.
+You own the movement and wave foundation plus the progression system. Teddy also supplies the Mavericks opening map and scenery. Anika supplies the trick controller, landing evaluation, five remaining maps and environments, and UI. Integrate her modules through the interfaces in this section; do not duplicate them inside your controller.
 
 ### T1. Controls and movement
 
 | Input | On the wave | In the air |
 | --- | --- | --- |
-| W | Pump/tuck to gain speed, within the speed cap | Frontflip |
-| S | Brake/stall to stay inside the pocket | Backflip |
-| A / D | Steer left/right relative to the travel heading | Spin left/right |
+| W | No wave action; forward speed changes automatically | Frontflip |
+| S | No wave action; forward speed changes automatically | Backflip |
+| A / D | Steer left/right on screen; near a wide barrel, holding toward the lip climbs the inner wall and the opposite direction reverses or exits | Spin left/right |
 | Space | Tap for a small jump; hold up to 0.6 s and release for a stronger jump | No extra jump |
-| W or S + A or D | Normal combined movement | Combined off-axis flip/spin, such as a cork |
+| W or S + A or D | A/D steering only | Combined off-axis flip/spin, such as a cork |
 | R | Restart the current run | Restart the current run |
 | Esc | Pause | Pause |
 
-- Basic surfing and every required trick must be possible with WASD and Space. Extra trick keys are not required.
-- W/S held for speed control must not unexpectedly start a flip at takeoff: require a fresh W/S press after leaving water. Show this in the tutorial. A/D may carry through takeoff for a preloaded spin.
+- A/D and Space handle surfing; A/D and W/S handle air tricks. Extra trick keys are not required.
+- W/S pressed before takeoff must not unexpectedly start a flip: require a fresh W/S press after leaving water. Show this in the tutorial. A/D may carry through takeoff for a preloaded spin.
 - Release directional keys to damp rotation. Use gentle landing assistance; do not instantly snap the rider upright.
 - Left/right input remains intuitive on left- and right-breaking maps. The camera’s orientation must not reverse the controls.
+- Near a wide barrel, holding A/D toward the lip carries the board through a full loop around the hollow while the rider travels forward. Releasing the keys returns the board to the face, and steering toward the trough reverses or exits the wall ride.
 - Prevent Space from scrolling while the game has focus. Never capture movement keys while a menu or text input is active.
 - Clear held inputs on blur, pause, restart, and disposal; losing focus automatically pauses the run.
 
 #### Surfing and wave contact
 
 - Use a fixed physics step of 1/60 second with rendering interpolation and a capped catch-up budget. Frame rate must not change jump height or scoring.
-- Use a controlled arcade model: speed along the wave plus steering over the face, with gravity and limited air control after takeoff.
+- Use a controlled arcade model: forward speed varies automatically with the wave and the rider's line; A/D steer over the face, with gravity and limited air control after takeoff.
 - The board follows the sampled water position and normal. Smooth board tilt without separating it visibly from the water.
-- Carving should change the rider’s line and speed. W must not provide unlimited acceleration, and S must have a visible braking effect.
+- Carving should respond quickly while held and settle promptly on release. Face position, wave motion, and uphill/downhill carving change forward speed without a separate speed input.
 - A low-face turn can build momentum into a lip launch. Launch sections add lift only when the rider actually reaches them with enough speed.
 - Flat-water jumps remain small; big tricks reward use of the wave. No repeated midair jumps or unlimited flight.
 - Detect contact across the previous/current motion segment to prevent tunneling through thin or fast-moving geometry.
@@ -66,7 +67,9 @@ The rideable wave must curl overhead into a visible hollow tube. The surfer trav
 - Use one parameterized wave model for the rendered mesh, board contact, lip location, barrel volume, and closeout state. A simple height field alone cannot represent an overhanging lip.
 - Expose internal queries for surface position/normal and barrel centerline/radius at a given position and simulation time. The surface parameterization must support the folded lip without confusing it with the lower rideable face.
 - Barrel status requires the surfer to be inside the hollow region and behind the curling lip, with at least 0.3 s of continuous valid occupancy. Riding outside or above it earns no barrel points.
-- Braking should keep the surfer deeper in the pocket; accelerating should help them reach the exit.
+- A/D carving should let the surfer find the hollow, hold a readable line through it, and steer back to open water before closure.
+- The wave should rise from a low trough into a steep breaking peak, then peel down to a lower open shoulder ahead. A distinct, partly translucent lip must pitch over and land close to the face, leaving a visible hollow arch. Shade the inner wall and add moving surface highlights, whitewater where the lip lands, foam, and spray.
+- A barrel wall loop counts as continuous barrel occupancy, with the board returning to the wave face at the end. It is an arcade maneuver; no separate aerial landing report or second barrel score is generated.
 - Show impending closure with the visibly shrinking opening and increasing foam before it becomes a collision hazard.
 - A clean exit completes the barrel maneuver and adds it to the pending combo; points bank under the scoring rules below. A closeout or collision loses only the unbanked combo.
 - Match rendered and physical openings. No invisible walls where the player sees open water.
@@ -80,7 +83,7 @@ The rideable wave must curl overhead into a visible hollow tube. The surfer trav
 - Reduced Motion disables shake and large FOV shifts. Keep controls and trick timing unchanged.
 - Engine events drive Anika’s HUD and audio. Do not place DOM menus or permanent HUD elements inside the engine.
 
-- Own the surfer/board model and crouch, extension, and landing animation. Apply the orientation and trick label produced by Anika’s module. Body and board stay connected; neither the camera nor the heading reference spins with the model.
+- Own the penguin/ice-board model and crouch, flipper, extension, and landing animation. Apply the orientation and trick label produced by Anika’s module. Body and board stay connected; neither the camera nor the heading reference spins with the model.
 - Apply Anika’s landing outcome to speed, pose recovery, splash, and the engine state; the engine never independently reclassifies a normal water landing. Collisions with closing wave lips may cause an immediate engine wipeout without invoking a successful landing.
 
 ### T4. Runtime scoring and run rules
@@ -116,7 +119,7 @@ Each map has three independently earned medals. Evaluate them from the engine’
 
 | Map | Medal 1 | Medal 2 | Medal 3 |
 | --- | --- | --- | --- |
-| Bells | 3 clean landings in one run | Land a 360 | Score 2,000 in a Score Run |
+| Mavericks | 3 clean landings in one run | Continuous barrel of 4 s | Score 2,000 in a Score Run |
 | Pipeline | Continuous barrel of 3 s | Continuous barrel of 6 s | Bank a 2,500-point combo |
 | J-Bay | 6 clean landings in one run | Bank a 3,000-point combo | Score 6,000 in a Score Run |
 | Uluwatu | Continuous barrel of 3 s | Land a 720 | Score 5,000 in a Score Run |
@@ -125,7 +128,7 @@ Each map has three independently earned medals. Evaluate them from the engine’
 
 These are provisional thresholds. Playtest every challenge before release and lower targets that are impossible or tedious. Do not make a medal depend on an event or metric absent from the shared contract. A special “double backflip + 1080” achievement would need an explicit metric extension first.
 
-- Unlock three additional board colors at 3, 6, and 12 total medals. Colors must not change speed, handling, or jump strength.
+- Unlock three additional accent tints for the ice board at 3, 6, and 12 total medals. Tints must not change speed, handling, or jump strength; the board remains visibly made of ice.
 - Keep every map playable from the beginning. Progression rewards mastery without blocking a teammate’s demo.
 - Keep best scores separate by map and mode; an unlimited Free Surf score must not compete with a timed Score Run record.
 - Use the engine’s `score` and `bestCombo` fields directly. `score-banked` is for feedback; do not add it again to a completed result.
@@ -156,7 +159,9 @@ Teddy owns `src/shared/contracts.ts`; both teammates review changes. Merge contr
 | `src/progress/**`, `tests/progress/**` | Teddy: challenges, medals, unlocks, records, settings persistence |
 | `src/shared/**` | Teddy maintains; both review |
 | `src/tricks/**`, `tests/tricks/**` | Anika: aerial orientation, rotation accounting, labels, landing evaluation |
-| `src/app/**`, `src/ui/**`, `src/maps/**`, `src/worlds/**`, `src/audio/**`, `tests/app/**` | Anika |
+| `src/app/**`, `src/ui/**`, `src/audio/**`, `tests/app/**` | Anika |
+| `src/maps/mavericks.ts`, `src/maps/index.ts`, `src/worlds/mavericks.ts` | Teddy: opening Mavericks level and registry order; coordinate registry edits as Anika adds maps |
+| Other `src/maps/**` and `src/worlds/**` | Anika: remaining five locations |
 | `public/assets/worlds/**`, `public/assets/audio/**` | Anika |
 | `index.html`, `src/main.ts`, `package.json`, lockfile, TypeScript/Vite configuration, deployment workflow, `README.md` | Anika; coordinate dependency changes |
 | `docs/PLAYTEST_Teddy.md` / `docs/PLAYTEST_Anika.md` | Each person owns their own playtest notes |
@@ -169,7 +174,7 @@ Anika’s app imports the engine, tricks, map registry, and progress API and wir
 ```ts
 import type { Scene } from 'three';
 
-export type MapId = 'bells' | 'pipeline' | 'jbay' | 'uluwatu' | 'teahupoo' | 'nazare';
+export type MapId = 'mavericks' | 'pipeline' | 'jbay' | 'uluwatu' | 'teahupoo' | 'nazare';
 export type Mode = 'free-surf' | 'score-run';
 export type Quality = 'low' | 'medium' | 'high';
 export type RiderState = 'surfing' | 'barrel' | 'airborne' | 'wipeout';
@@ -282,7 +287,7 @@ export declare function createSurfSession(options: {
 - Units: meters, seconds, degrees for reported rotations; world Y is up. At the start of a wave, the trough origin is `(0, 0, 0)`. Increasing along-wave distance follows +Z for right breaks and -Z for left breaks; the face rises toward +X. Scenery must use this frame and keep the ride corridor clear. `along01` follows the wave’s peeling path from 0 to 1 regardless of break direction; `face01` runs from trough 0 to lip 1. The engine handles mirroring internally.
 - Section intervals must satisfy `0 <= start01 < end01 <= 1`. Positive dimensions/speeds, positive radius/lift, and a positive closeout delay or `null` are mandatory. Spawn must be outside a closed barrel and inside the rideable surface.
 - A closing section’s countdown begins on first valid entry during that wave, continues even after exit, and resets only for a new wave/restart. All closeout visuals use that same countdown. This is a deliberate arcade rule.
-- Anika provides and validates map data. Teddy validates again at the engine boundary and rejects bad input with a readable error.
+- Teddy provides Mavericks map data; Anika provides the other five maps. Each validates their map data, and Teddy validates again at the engine boundary with a readable error.
 - `createSurfSession` creates one canvas/renderer and a ready, nonrunning session. `start` begins once. The engine alone owns the animation loop, clock, resize handling, gameplay input, wave mesh, and camera.
 - The environment factory adds scenery/lights to the supplied scene; it creates no renderer, animation loop, input handlers, rideable water, or gameplay collisions. Environment assets are preloaded by the app before session creation. The engine calls its update and disposal methods and forwards settings changes to `setSettings`; visual quality changes must work without restarting the run.
 - `pause` freezes physics, timer, combo expiry, and environment animation. `resume` does not restore stale held keys. `restart` resets all runtime state, creates a new run ID, and retains the selected map/mode/seed/settings.
@@ -401,7 +406,7 @@ export declare function createProgressStore(): ProgressStore;
 
 Automate wave/map validation, barrel entry/exit/closeout, combo banking, duplicate aerial credit, timer/pause behavior, challenge thresholds, result deduplication, separate map/mode records, corrupt saves, and storage failures. Test the real trick report at the engine boundary; leave rotation/landing unit tests to Anika.
 
-- [ ] WASD and Space produce responsive steering, speed control, and jumps.
+- [ ] A/D and Space produce responsive steering and jumps; forward speed changes automatically with the wave and rider line.
 - [ ] The camera follows travel direction and remains stable during tricks.
 - [ ] Water rendering, board contact, and barrel volume agree.
 - [ ] Riding beside a barrel never earns barrel time; closing openings give visible warning.
@@ -443,24 +448,24 @@ The following are **proposed arcade interpretations** of famous places. Numeric 
 
 | Map ID / location | Visual identity | Distinct riding experience | Main skill | Difficulty |
 | --- | --- | --- | --- | --- |
-| `bells` — Bells Beach, Australia | Warm morning light, cliffs, broad blue-green water | Broad forgiving face, modest speed, easy launch zones; optional short training tube | Learn carving, jumps, and clean landings | Easy |
-| `pipeline` — Banzai Pipeline, Hawaii, USA | Tropical shore, turquoise wall, strong white spray | Fast hollow tube with long barrel sections and a clear exit | Control depth with pumping and braking | Hard |
-| `jbay` — Jeffreys Bay, South Africa | Open coastline, long clean lines, golden light | Long right-breaking ride with separated launch opportunities and few interruptions | Maintain speed and chain varied tricks | Medium |
+| `mavericks` — Mavericks, Half Moon Bay, California, USA | Cool Pacific light, offshore water, sandy cove and bluffs | Broad arcade face, generous first tube for an inner-wall loop, readable closeout later, strong launch zones | Learn carving, barrels, jumps, and clean landings | Easy |
+| `pipeline` — Banzai Pipeline, Hawaii, USA | Tropical shore, turquoise wall, strong white spray | Fast hollow tube with long barrel sections and a clear exit | Hold a line through the tube and exit cleanly | Hard |
+| `jbay` — Jeffreys Bay, South Africa | Open coastline, long clean lines, golden light | Long right-breaking ride with separated launch opportunities and few interruptions | Chain varied tricks along the wave | Medium |
 | `uluwatu` — Uluwatu, Bali, Indonesia | Limestone cliffs, elevated coastal silhouettes, deep turquoise | Left-breaking ride alternating open faces, tubes, and takeoff sections | Adapt between barrel riding and aerials | Hard |
 | `teahupoo` — Teahupoo, Tahiti, French Polynesia | Mountain-backed coast, dark blue-green water, heavy lip | Compact steep face, narrow tube, shortest closeout warning | Precise positioning and timely exits | Expert |
-| `nazare` — Nazare, Portugal | Stormy Atlantic, headland/lighthouse silhouette, huge spray | Towering open faces and strongest launch zones; barrels are not its focus | Manage speed, air time, and impossible combos | Expert |
+| `nazare` — Nazare, Portugal | Stormy Atlantic, headland/lighthouse silhouette, huge spray | Towering open faces and strongest launch zones; barrels are not its focus | Use air time for impossible combos | Expert |
 
-The entire first release includes all six. Build Bells, Pipeline, and J-Bay first as an integration checkpoint, then add the other three.
+The entire first release includes all six, with Mavericks first. Build Mavericks, Pipeline, and J-Bay first as an integration checkpoint, then add the other three.
 
 #### Initial wave configuration
 
 | ID | Break | Height / face width | Ride length | Peel speed | Barrel intervals, radius, closure | Launch intervals and lift |
 | --- | --- | --- | --- | --- | --- | --- |
-| `bells` | Right | 3 m / 10 m | 420 m | 8 m/s | 0.60–0.72, 1.0 m, never | 0.20–0.30 and 0.80–0.90, 1.0× |
-| `pipeline` | Left | 7 m / 12 m | 360 m | 14 m/s | 0.20–0.70, 1.8 m, after 9 s | 0.75–0.90, 1.2× |
+| `mavericks` | Right | 8 m / 20 m | 560 m | 12 m/s | 0.18–0.38, 3.2 m, never; 0.62–0.80, 2.1 m, after 14 s | 0.08–0.16, 1.1×; 0.49–0.58, 1.5×; 0.83–0.93, 1.7× |
+| `pipeline` | Left | 7 m / 12 m | 360 m | 14 m/s | 0.20–0.70, 1.8 m, after 14 s | 0.75–0.90, 1.2× |
 | `jbay` | Right | 4 m / 12 m | 700 m | 11 m/s | 0.45–0.58, 1.2 m, never | 0.15–0.25, 0.60–0.70, 0.85–0.95, 1.3× |
 | `uluwatu` | Left | 5 m / 10 m | 480 m | 12 m/s | 0.25–0.42 and 0.65–0.80, 1.3 m, after 7 s each | 0.45–0.60 and 0.84–0.94, 1.4× |
-| `teahupoo` | Left | 6 m / 8 m | 300 m | 13 m/s | 0.20–0.65, 1.1 m, after 4.5 s | 0.75–0.90, 1.1× |
+| `teahupoo` | Left | 6 m / 8 m | 300 m | 13 m/s | 0.20–0.65, 1.1 m, after 11 s | 0.75–0.90, 1.1× |
 | `nazare` | Right | 18 m / 32 m | 650 m | 19 m/s | None | 0.20–0.38 and 0.65–0.85, 2.0× |
 
 Intervals are normalized positions along a wave, not world coordinates. All maps start at `along01: 0.05, face01: 0.35`; verify each spawn with Teddy’s engine. Closure is timed from first entry into the section for that wave, as defined in the shared contract. Tune the values with Teddy when a tube is too small for the surfer or a goal cannot be completed.
@@ -469,7 +474,7 @@ Intervals are normalized positions along a wave, not world coordinates. All maps
 
 ### A3. Scenery and environment integration
 
-- Store one typed definition per location under `src/maps/`, plus a registry with all six IDs. Keep selection-card text in app-side metadata keyed by the same IDs. Read challenge definitions and earned medals from Teddy’s progression API; do not duplicate them in map data.
+- Store one typed definition per location under `src/maps/`, plus a registry with all six IDs, beginning with Mavericks. Teddy supplies the Mavericks definition and opening order; Anika adds the remaining five. Keep selection-card text in app-side metadata keyed by the same IDs. Read challenge definitions and earned medals from Teddy’s progression API; do not duplicate them in map data.
 - Use `src/worlds/` to create each destination’s scenery through the shared `EnvironmentFactory`. Use the supplied scene and coordinate frame.
 - Teddy owns all rideable wave geometry, water contact, barrel shape, and gameplay spray. Pass him palette and mechanical parameters; do not deform his mesh independently.
 - Background ocean must remain outside/below the active wave corridor. Avoid seams or a flat water plane cutting visibly through a barrel.
@@ -488,7 +493,7 @@ Intervals are normalized positions along a wave, not world coordinates. All maps
 | Map select | Six cards showing location, difficulty, signature wave behavior, preview, local best score, and medal state |
 | Mode select | Free Surf description; 120-second Score Run description; selected location stays visible |
 | Loading | Location name, loading state, one useful control tip, readable error/retry |
-| Tutorial | WASD/Space diagram, on-water versus in-air actions, barrel explanation, safe landing advice; dismissible and reopenable |
+| Tutorial | A/D, W/S, and Space diagram, wave-driven speed, on-water versus in-air actions, barrel explanation, safe landing advice; dismissible and reopenable |
 | In-game HUD | Banked score, pending combo/multiplier, current trick, barrel timer when inside, run countdown in Score Run |
 | Pause | Resume, Restart Run, End Run, Settings, Return to Maps with explicit discard/end handling |
 | Results | Score, best combo, longest barrel, largest landed spin, clean landings, wipeouts, earned medals; Retry and Change Map |
@@ -499,7 +504,7 @@ Intervals are normalized positions along a wave, not world coordinates. All maps
 - Show understandable state labels: “In the barrel,” “720 + backflip,” “Clean landing,” “Combo lost.” Do not expose debug names to players.
 - No score countdown in Free Surf. Provide an End Run button accessible through pause.
 - State changes must prevent gameplay keyboard input while menus have focus. On Escape, the engine and app must not both toggle pause independently; route the pause request through one agreed app handler in the integration PR, with engine input clearing handled by `pause()`.
-- Tutorial must explain that W/S need a fresh press in the air to flip, so holding W for speed does not unexpectedly throw the rider forward.
+- Tutorial must explain that W/S flip only after takeoff and need a fresh press if held before the jump. A/D steer on the wave and spin in the air. Near wide barrels, holding A/D toward the lip starts a wall ride; the opposite direction reverses or exits.
 - Keyboard-accessible buttons, visible focus, readable text contrast, and status cues that do not rely solely on color are required.
 
 - On `run-ended`, call Teddy’s `recordResult(result)` once, then render the returned medals, unlocks, and saved records. Use `getSnapshot()` to populate map cards and settings.
@@ -520,7 +525,7 @@ Intervals are normalized positions along a wave, not world coordinates. All maps
 | --- | --- | --- |
 | A0 — Foundation | Minimal Vite/TypeScript/Three.js scaffold, dependencies, lockfile, bootstrap, npm scripts | Simple screen renders; typecheck/build pass; merge before feature branches |
 | A1 — Trick module | Rotation integration, labels, combined tricks, landing assessment, unit fixtures | Artificial takeoff/contact fixtures verify spins, flips, reversals, and landing grades without requiring finished scenery |
-| A2 — First playable app | Wire real engine/tricks/progress APIs; menus, HUD, tutorial, initial Bells/Pipeline/J-Bay scenery | A real barrel and landed 720 appear in HUD; one finished Score Run reaches results |
+| A2 — First playable app | Wire real engine/tricks/progress APIs; menus, HUD, tutorial, initial Mavericks/Pipeline/J-Bay scenery | A real barrel and landed 720 appear in HUD; one finished Score Run reaches results |
 | A3 — Six locations and rewards UI | Remaining maps, challenge/medal/settings display, audio, loading/errors | Every map is distinct; UI displays Teddy’s stored medals and colors after refresh |
 | A4 — Release | Asset cleanup, credits, quality options, production deployment | Shared release checks pass on the actual browser URL; no production mocks |
 
@@ -552,9 +557,9 @@ Record device/browser, steps, expected/actual results, and unresolved issues in 
 3. Each PR describes behavior, owned files changed, checks run, and remaining limitations. The other teammate reviews. Resolve conflicts by preserving both contributions, not overwriting the other person’s file.
 4. Anika’s bootstrap creates Teddy’s progress store, loads the selected map/environment, creates the session with Anika’s `createTrickController`, connects events to the HUD and progress store, and starts the session. No component creates a second renderer or simulation loop.
 5. Merge an early playable flow before all scenery is finished: title → map → controllable wave → real trick and landing → HUD → End Run → results → saved record. Prove a barrel and an aerial in this integration.
-6. Integrate Bells, Pipeline, and J-Bay first, followed by Uluwatu, Teahupoo, and Nazare. Three maps are a checkpoint, not the completed release.
+6. Integrate Mavericks, Pipeline, and J-Bay first, followed by Uluwatu, Teahupoo, and Nazare. Mavericks is the first level. Three maps are a checkpoint, not the completed release.
 7. Before release, run `npm ci`, `npm run typecheck`, `npm test`, and `npm run build`. Test the production preview; a passing build alone does not prove gameplay.
-8. On the merged app, verify every map, both modes, WASD/Space, a barrel, a landed trick, a wipeout, pause/resume, a complete Score Run, medals/records after refresh, and ten map switches. Test Chrome and Safari where available and record actual device/browser versions.
+8. On the merged app, verify every map, both modes, A/D steering, W/S air flips, Space jumps, automatic wave speed, a barrel, a landed trick, a wipeout, pause/resume, a complete Score Run, medals/records after refresh, and ten map switches. Test Chrome and Safari where available and record actual device/browser versions.
 9. Anika configures GitHub Pages for the repository path, including Vite’s base path and asset URLs. Both teammates open the live build and repeat the core play flow before calling it complete.
 
 **Final handoff:** one repository, this single PRD, one install/build process, one playable browser URL, six maps, both playtest notes, asset credits, and no duplicate engines, trick implementations, progression stores, or app shells.
@@ -562,5 +567,8 @@ Record device/browser, steps, expected/actual results, and unresolved issues in 
 ### A9. Project references
 
 - [Cork 7](https://cork7.com/) and its [official controls/tricks guide](https://cork7.com/how-to-play), consulted November 17, 2026: reference for approachable keyboard movement and player-controlled aerial rotations. BarrelRoll uses its own identity, surfing systems, score rules, and assets.
+- [San Mateo County Parks: Pillar Point Bluff](https://www.smcgov.org/parks/pillar-point-bluff), consulted November 17, 2026: location reference for the offshore Mavericks break, nearby beach, and coastal bluff. The game scenery is an original arcade interpretation.
+- [Surfer surfing glossary](https://www.surfer.com/how-to/surfing-lingo-glossary), consulted November 17, 2026: visual reference for a barrel as the open hollow of a breaking wave, with whitewater deeper inside the tube.
+- [Academy of Surfing Instructors: Parts of the Wave](https://www.academyofsurfing.com/news/parts-of-the-wave), consulted November 17, 2026: reference for the face, pitching lip, whitewater, and less-steep shoulder.
 - [Three.js documentation](https://threejs.org/manual/) and [Vite guide](https://vite.dev/guide/): proposed implementation stack. Choose compatible stable versions during setup and commit the lockfile.
 - Map parameters, course layouts, challenge thresholds, and closeout timing are original arcade design proposals, not statements about actual surf conditions.
