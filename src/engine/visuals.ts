@@ -2,6 +2,7 @@ import {
   BufferGeometry,
   Color,
   ConeGeometry,
+  type DataTexture,
   DoubleSide,
   ExtrudeGeometry,
   Float32BufferAttribute,
@@ -10,6 +11,7 @@ import {
   LineLoop,
   LineSegments,
   Mesh,
+  MeshBasicMaterial,
   MeshPhongMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
@@ -19,80 +21,154 @@ import {
   type Scene,
   SphereGeometry,
   type Material,
+  Vector2,
 } from 'three';
 import type { GameSettings, RiderState } from '../shared/contracts';
 import type { SurfSimulation } from './simulation';
 import type { WaveModel } from './wave';
+import { createWaterNormalMap } from './waterTexture';
 
 export class WaveVisual {
   readonly mesh: Mesh<BufferGeometry, MeshPhongMaterial>;
+  readonly lipMesh: Mesh<BufferGeometry, MeshPhysicalMaterial>;
+  readonly impactFoam: Mesh<BufferGeometry, MeshBasicMaterial>;
   readonly curlSpray: Points;
   private readonly rows = 176;
-  private readonly columns = 52;
+  private readonly faceColumns = 38;
+  private readonly lipColumns = 22;
   private readonly base: Color;
   private readonly foam: Color;
   private readonly wave: WaveModel;
+  private readonly waterNormal: DataTexture;
 
   constructor(wave: WaveModel, waterColor: string, foamColor: string) {
     this.wave = wave;
     this.base = new Color(waterColor);
     this.foam = new Color(foamColor);
-    const geometry = new BufferGeometry();
-    const vertexCount = (this.rows + 1) * (this.columns + 1);
-    geometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(vertexCount * 3), 3));
-    geometry.setAttribute('color', new Float32BufferAttribute(new Float32Array(vertexCount * 3), 3));
-    const indices: number[] = [];
-    for (let row = 0; row < this.rows; row++) {
-      for (let column = 0; column < this.columns; column++) {
-        const a = row * (this.columns + 1) + column;
-        const b = a + this.columns + 1;
-        indices.push(a, b, a + 1, b, b + 1, a + 1);
-      }
-    }
-    geometry.setIndex(indices);
-    const material = new MeshPhongMaterial({ vertexColors: true, side: DoubleSide,
-      shininess: 80, specular: new Color('#8bd8d5') });
-    this.mesh = new Mesh(geometry, material);
+    this.waterNormal = createWaterNormalMap();
+    this.waterNormal.repeat.set(4, 18);
+    const faceGeometry = this.makeSheet(this.faceColumns, 0, 0.78);
+    const faceMaterial = new MeshPhongMaterial({ vertexColors: true, side: DoubleSide,
+      shininess: 95, specular: new Color('#9ddde3'),
+      normalMap: this.waterNormal, normalScale: new Vector2(0.45, 0.45) });
+    this.mesh = new Mesh(faceGeometry, faceMaterial);
     this.mesh.frustumCulled = false;
+    const lipGeometry = this.makeSheet(this.lipColumns, 0.78, 1);
+    const lipMaterial = new MeshPhysicalMaterial({ vertexColors: true, side: DoubleSide,
+      roughness: 0.17, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.12,
+      normalMap: this.waterNormal, normalScale: new Vector2(0.25, 0.25),
+      transparent: true, opacity: 0.68, depthWrite: false, forceSinglePass: true });
+    this.lipMesh = new Mesh(lipGeometry, lipMaterial);
+    this.lipMesh.frustumCulled = false;
+    this.impactFoam = new Mesh(this.makeSheet(4), new MeshBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.58,
+      depthWrite: false, side: DoubleSide,
+    }));
+    this.impactFoam.frustumCulled = false;
     const sprayGeometry = new BufferGeometry();
     sprayGeometry.setAttribute('position',
-      new Float32BufferAttribute(new Float32Array(240 * 3), 3));
-    const sprayMaterial = new PointsMaterial({ color: foamColor, size: 0.24,
-      transparent: true, opacity: 0.76, depthWrite: false });
+      new Float32BufferAttribute(new Float32Array(480 * 3), 3));
+    const sprayMaterial = new PointsMaterial({ color: foamColor, size: 0.32,
+      transparent: true, opacity: 0.72, depthWrite: false });
     this.curlSpray = new Points(sprayGeometry, sprayMaterial);
     this.curlSpray.frustumCulled = false;
     this.update(0);
   }
 
-  update(timeS: number): void {
-    const positions = this.mesh.geometry.getAttribute('position');
-    const colors = this.mesh.geometry.getAttribute('color');
+  private makeSheet(columns: number, startU = 0, endU = 1): BufferGeometry {
+    const geometry = new BufferGeometry();
+    const vertexCount = (this.rows + 1) * (columns + 1);
+    geometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(vertexCount * 3), 3));
+    geometry.setAttribute('color', new Float32BufferAttribute(new Float32Array(vertexCount * 3), 3));
+    const uvs = new Float32Array(vertexCount * 2);
+    for (let row = 0; row <= this.rows; row++) {
+      for (let column = 0; column <= columns; column++) {
+        const index = row * (columns + 1) + column;
+        uvs[index * 2] = startU + (endU - startU) * column / columns;
+        uvs[index * 2 + 1] = row / this.rows;
+      }
+    }
+    geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+    const indices: number[] = [];
+    for (let row = 0; row < this.rows; row++) {
+      for (let column = 0; column < columns; column++) {
+        const a = row * (columns + 1) + column;
+        const b = a + columns + 1;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    geometry.setIndex(indices);
+    return geometry;
+  }
+
+  private updateSheet(geometry: BufferGeometry, columns: number,
+    startU: number, endU: number, timeS: number): void {
+    const positions = geometry.getAttribute('position');
+    const colors = geometry.getAttribute('color');
     const tint = new Color();
     for (let row = 0; row <= this.rows; row++) {
       const alongM = this.wave.map.wave.rideLengthM * row / this.rows;
       const barrel = this.wave.barrelAt(alongM, 0, 0, timeS);
-      for (let column = 0; column <= this.columns; column++) {
-        const u = column / this.columns;
-        const index = row * (this.columns + 1) + column;
+      const impactX = this.wave.crossSectionAt(alongM, 1, timeS).x;
+      for (let column = 0; column <= columns; column++) {
+        const u = startU + (endU - startU) * column / columns;
+        const index = row * (columns + 1) + column;
         const point = this.wave.crossSectionAt(alongM, u, timeS);
         positions.setXYZ(index, point.x, point.y, point.z);
         const crestBreak = 0.78 + 0.22 * Math.sin(alongM * 0.19 - timeS * 2.1 + u * 13);
-        const lipFoam = Math.pow(Math.max(0, (u - 0.945) / 0.055), 1.2) * crestBreak;
+        const curl = Math.max(0, (u - 0.78) / 0.22);
+        const lipFoam = Math.pow(Math.max(0, (curl - 0.70) / 0.30), 1.1) * crestBreak;
         const closingFoam = (barrel?.foam ?? 0) * Math.max(0, (u - 0.66) / 0.34);
         const insideShade = (barrel?.radiusM ?? 0) > 0.6 && u > 0.80 && u < 0.95 ?
-          0.58 + 0.13 * (u - 0.80) / 0.15 : 1;
-        const faceShade = u < 0.78 ? 0.82 + 0.18 * u / 0.78 : 1;
-        const faceGlow = u < 0.78 ? Math.pow(u / 0.78, 4) * 0.11 : 0;
-        const streak = u > 0.58 && u < 0.77 ?
-          Math.pow(Math.max(0, Math.sin(alongM * 0.17 - timeS * 1.6 + u * 19)), 10) * 0.14 : 0;
+          0.56 + 0.18 * (u - 0.80) / 0.15 : 1;
+        const faceT = Math.min(1, u / 0.78);
+        const faceShade = u < 0.78 ? 0.68 + 0.32 * faceT : 1;
+        const faceGlow = u < 0.78 ? Math.pow(faceT, 3.5) * 0.16 : 0;
+        const crestFoam = Math.exp(-Math.pow((u - 0.79) / 0.023, 2)) * 0.19;
+        const flowLine = u < 0.78 ?
+          Math.pow(Math.max(0, Math.sin(alongM * 0.19 - timeS * 1.5 +
+            faceT * 22 + Math.sin(alongM * 0.035) * 1.4)), 12) *
+            (0.03 + 0.12 * faceT) : 0;
+        const impactColor = u < 0.78 ?
+          Math.exp(-Math.pow((point.x - impactX) / 0.85, 2)) *
+            Math.min(0.3, 0.10 + (barrel?.radiusM ?? 0) * 0.04) : 0;
         tint.copy(this.base).multiplyScalar(insideShade * faceShade).lerp(this.foam,
-          Math.min(0.97, lipFoam * 0.9 + closingFoam * 0.54 + streak + faceGlow));
+          Math.min(0.97, lipFoam * 0.86 + closingFoam * 0.54 + crestFoam +
+            flowLine + impactColor + faceGlow));
         colors.setXYZ(index, tint.r, tint.g, tint.b);
       }
     }
     positions.needsUpdate = true;
     colors.needsUpdate = true;
-    this.mesh.geometry.computeVertexNormals();
+    geometry.computeVertexNormals();
+  }
+
+  update(timeS: number): void {
+    this.waterNormal.offset.set(timeS * 0.005, -timeS * 0.012);
+    this.updateSheet(this.mesh.geometry, this.faceColumns, 0, 0.78, timeS);
+    this.updateSheet(this.lipMesh.geometry, this.lipColumns, 0.78, 1, timeS);
+    const foamPositions = this.impactFoam.geometry.getAttribute('position');
+    const foamColors = this.impactFoam.geometry.getAttribute('color');
+    const foamTint = new Color();
+    for (let row = 0; row <= this.rows; row++) {
+      const alongM = this.wave.map.wave.rideLengthM * row / this.rows;
+      const tip = this.wave.crossSectionAt(alongM, 1, timeS);
+      const radius = this.wave.barrelAt(alongM, 0, 0, timeS)?.radiusM ?? 0;
+      const width = 0.18 + Math.min(0.7, radius * 0.22);
+      for (let column = 0; column <= 4; column++) {
+        const across = column / 4;
+        const x = tip.x + (across - 0.5) * width * 2;
+        const point = this.wave.surfaceAt(alongM, x, timeS).position;
+        const index = row * 5 + column;
+        foamPositions.setXYZ(index, x, point.y + 0.04, point.z);
+        const strength = Math.pow(Math.sin(Math.PI * across), 2) *
+          (0.72 + 0.28 * Math.sin(alongM * 0.17 - timeS * 1.7));
+        foamTint.copy(this.base).lerp(this.foam, 0.16 + strength * 0.84);
+        foamColors.setXYZ(index, foamTint.r, foamTint.g, foamTint.b);
+      }
+    }
+    foamPositions.needsUpdate = true;
+    foamColors.needsUpdate = true;
     const sprayPositions = this.curlSpray.geometry.getAttribute('position');
     for (let i = 0; i < sprayPositions.count; i++) {
       const alongM = this.wave.map.wave.rideLengthM * (i + 0.5) / sprayPositions.count;
@@ -102,10 +178,12 @@ export class WaveVisual {
         continue;
       }
       const phase = (timeS * (0.7 + (i % 5) * 0.06) + i * 0.43) % 1;
-      const u = 0.96 + 0.03 * Math.sin(i * 6.7);
+      const u = i % 3 === 0 ? 0.83 + 0.10 * Math.abs(Math.sin(i * 6.7)) :
+        0.94 + 0.06 * Math.abs(Math.sin(i * 6.7));
       const lip = this.wave.crossSectionAt(alongM, u, timeS);
-      sprayPositions.setXYZ(i, lip.x + Math.sin(i * 13.2) * 0.14,
-        lip.y + phase * 0.75, lip.z + Math.sin(i * 4.4) * 0.12);
+      sprayPositions.setXYZ(i, lip.x + Math.sin(i * 13.2) * 0.28,
+        lip.y + phase * (0.5 + (i % 4) * 0.22),
+        lip.z + Math.sin(i * 4.4) * 0.24);
     }
     sprayPositions.needsUpdate = true;
   }
@@ -113,6 +191,11 @@ export class WaveVisual {
   dispose(): void {
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
+    this.lipMesh.geometry.dispose();
+    this.lipMesh.material.dispose();
+    this.impactFoam.geometry.dispose();
+    this.impactFoam.material.dispose();
+    this.waterNormal.dispose();
     this.curlSpray.geometry.dispose();
     (this.curlSpray.material as PointsMaterial).dispose();
   }

@@ -33,7 +33,7 @@ You own the movement and wave foundation plus the progression system. Teddy also
 | --- | --- | --- |
 | W | No wave action; forward speed changes automatically | Frontflip |
 | S | No wave action; forward speed changes automatically | Backflip |
-| A / D | Steer left/right on screen; in a wide barrel, a fresh press toward the lip climbs the inner wall and the opposite direction reverses or exits | Spin left/right |
+| A / D | Steer left/right on screen; near a wide barrel, holding toward the lip climbs the inner wall and the opposite direction reverses or exits | Spin left/right |
 | Space | Tap for a small jump; hold up to 0.6 s and release for a stronger jump | No extra jump |
 | W or S + A or D | A/D steering only | Combined off-axis flip/spin, such as a cork |
 | R | Restart the current run | Restart the current run |
@@ -43,7 +43,7 @@ You own the movement and wave foundation plus the progression system. Teddy also
 - W/S pressed before takeoff must not unexpectedly start a flip: require a fresh W/S press after leaving water. Show this in the tutorial. A/D may carry through takeoff for a preloaded spin.
 - Release directional keys to damp rotation. Use gentle landing assistance; do not instantly snap the rider upright.
 - Left/right input remains intuitive on left- and right-breaking maps. The camera’s orientation must not reverse the controls.
-- Inside a wide barrel, A/D can carry the board through a full loop around the hollow while the rider travels forward. A held entry key must not launch the loop; release and press again. Releasing the keys returns the board to the face, and steering toward the trough exits the wall ride.
+- Near a wide barrel, holding A/D toward the lip carries the board through a full loop around the hollow while the rider travels forward. Releasing the keys returns the board to the face, and steering toward the trough reverses or exits the wall ride.
 - Prevent Space from scrolling while the game has focus. Never capture movement keys while a menu or text input is active.
 - Clear held inputs on blur, pause, restart, and disposal; losing focus automatically pauses the run.
 
@@ -68,7 +68,7 @@ The rideable wave must curl overhead into a visible hollow tube. The surfer trav
 - Expose internal queries for surface position/normal and barrel centerline/radius at a given position and simulation time. The surface parameterization must support the folded lip without confusing it with the lower rideable face.
 - Barrel status requires the surfer to be inside the hollow region and behind the curling lip, with at least 0.3 s of continuous valid occupancy. Riding outside or above it earns no barrel points.
 - A/D carving should let the surfer find the hollow, hold a readable line through it, and steer back to open water before closure.
-- The rendered curl should pitch downward toward the face with a shaded inner wall, moving crest, foam, and spray. The player can see the tube opening while riding or looping inside it.
+- The wave should rise from a low trough into a steep breaking peak, then peel down to a lower open shoulder ahead. A distinct, partly translucent lip must pitch over and land close to the face, leaving a visible hollow arch. Shade the inner wall and add moving surface highlights, whitewater where the lip lands, foam, and spray.
 - A barrel wall loop counts as continuous barrel occupancy, with the board returning to the wave face at the end. It is an arcade maneuver; no separate aerial landing report or second barrel score is generated.
 - Show impending closure with the visibly shrinking opening and increasing foam before it becomes a collision hazard.
 - A clean exit completes the barrel maneuver and adds it to the pending combo; points bank under the scoring rules below. A closeout or collision loses only the unbanked combo.
@@ -461,7 +461,7 @@ The entire first release includes all six, with Mavericks first. Build Mavericks
 
 | ID | Break | Height / face width | Ride length | Peel speed | Barrel intervals, radius, closure | Launch intervals and lift |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mavericks` | Right | 8 m / 20 m | 560 m | 12 m/s | 0.18–0.47, 2.5 m, never; 0.62–0.80, 2.1 m, after 14 s | 0.08–0.16, 1.1×; 0.49–0.58, 1.5×; 0.83–0.93, 1.7× |
+| `mavericks` | Right | 8 m / 20 m | 560 m | 12 m/s | 0.18–0.38, 3.2 m, never; 0.62–0.80, 2.1 m, after 14 s | 0.08–0.16, 1.1×; 0.49–0.58, 1.5×; 0.83–0.93, 1.7× |
 | `pipeline` | Left | 7 m / 12 m | 360 m | 14 m/s | 0.20–0.70, 1.8 m, after 14 s | 0.75–0.90, 1.2× |
 | `jbay` | Right | 4 m / 12 m | 700 m | 11 m/s | 0.45–0.58, 1.2 m, never | 0.15–0.25, 0.60–0.70, 0.85–0.95, 1.3× |
 | `uluwatu` | Left | 5 m / 10 m | 480 m | 12 m/s | 0.25–0.42 and 0.65–0.80, 1.3 m, after 7 s each | 0.45–0.60 and 0.84–0.94, 1.4× |
@@ -504,7 +504,7 @@ Intervals are normalized positions along a wave, not world coordinates. All maps
 - Show understandable state labels: “In the barrel,” “720 + backflip,” “Clean landing,” “Combo lost.” Do not expose debug names to players.
 - No score countdown in Free Surf. Provide an End Run button accessible through pause.
 - State changes must prevent gameplay keyboard input while menus have focus. On Escape, the engine and app must not both toggle pause independently; route the pause request through one agreed app handler in the integration PR, with engine input clearing handled by `pause()`.
-- Tutorial must explain that W/S flip only after takeoff and need a fresh press if held before the jump. A/D steer on the wave and spin in the air. In wide barrels, a fresh A/D press toward the lip starts a wall ride; holding it completes a loop, while the opposite direction reverses or exits.
+- Tutorial must explain that W/S flip only after takeoff and need a fresh press if held before the jump. A/D steer on the wave and spin in the air. Near wide barrels, holding A/D toward the lip starts a wall ride; the opposite direction reverses or exits.
 - Keyboard-accessible buttons, visible focus, readable text contrast, and status cues that do not rely solely on color are required.
 
 - On `run-ended`, call Teddy’s `recordResult(result)` once, then render the returned medals, unlocks, and saved records. Use `getSnapshot()` to populate map cards and settings.
@@ -568,5 +568,7 @@ Record device/browser, steps, expected/actual results, and unresolved issues in 
 
 - [Cork 7](https://cork7.com/) and its [official controls/tricks guide](https://cork7.com/how-to-play), consulted November 17, 2026: reference for approachable keyboard movement and player-controlled aerial rotations. BarrelRoll uses its own identity, surfing systems, score rules, and assets.
 - [San Mateo County Parks: Pillar Point Bluff](https://www.smcgov.org/parks/pillar-point-bluff), consulted November 17, 2026: location reference for the offshore Mavericks break, nearby beach, and coastal bluff. The game scenery is an original arcade interpretation.
+- [Surfer surfing glossary](https://www.surfer.com/how-to/surfing-lingo-glossary), consulted November 17, 2026: visual reference for a barrel as the open hollow of a breaking wave, with whitewater deeper inside the tube.
+- [Academy of Surfing Instructors: Parts of the Wave](https://www.academyofsurfing.com/news/parts-of-the-wave), consulted November 17, 2026: reference for the face, pitching lip, whitewater, and less-steep shoulder.
 - [Three.js documentation](https://threejs.org/manual/) and [Vite guide](https://vite.dev/guide/): proposed implementation stack. Choose compatible stable versions during setup and commit the lockfile.
 - Map parameters, course layouts, challenge thresholds, and closeout timing are original arcade design proposals, not statements about actual surf conditions.

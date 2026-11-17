@@ -63,7 +63,8 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   const waveVisual = new WaveVisual(simulation.wave, options.map.visual.waterColor,
     options.map.visual.foamColor);
   const surfer = new SurferVisual(options.settings, options.map.visual.foamColor);
-  scene.add(waveVisual.mesh, waveVisual.curlSpray, surfer.group);
+  scene.add(waveVisual.mesh, waveVisual.lipMesh, waveVisual.impactFoam,
+    waveVisual.curlSpray, surfer.group);
   surfer.addSprayTo(scene);
   let environment: EnvironmentHandle;
   try {
@@ -173,11 +174,9 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     let steps = 0;
     while (accumulatorS >= 1 / 60 && steps < 8 && !simulation.ended) {
       const wasAirborne = simulation.state === 'airborne';
-      const wasBarrel = simulation.state === 'barrel';
       input.advance(1 / 60, simulation.state === 'surfing' || simulation.state === 'barrel');
       simulation.step(input.frame(), 1 / 60);
       if (!wasAirborne && simulation.state === 'airborne') input.beginAir();
-      if (!wasBarrel && simulation.state === 'barrel') input.beginBarrel();
       if (!simulation.ended) environment.update(simulation.simulationTimeS, 1 / 60);
       accumulatorS -= 1 / 60;
       steps++;

@@ -14,7 +14,7 @@ export const mavericks: MapDefinition = {
     rideLengthM: 560,
     peelSpeedMps: 12,
     barrelSections: [
-      { start01: 0.18, end01: 0.47, radiusM: 2.5, closeAfterEntryS: null },
+      { start01: 0.18, end01: 0.38, radiusM: 3.2, closeAfterEntryS: null },
       { start01: 0.62, end01: 0.80, radiusM: 2.1, closeAfterEntryS: 14 },
     ],
     launchSections: [

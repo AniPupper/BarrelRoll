@@ -242,8 +242,7 @@ export class SurfSimulation {
     const index = this.barrelSectionIndex;
     const section = index === null ? null : this.map.wave.barrelSections[index];
     if (section && index !== null && this.barrelS >= 0.3 &&
-        this.wave.along01(this.alongM) >= section.end01 -
-          Math.min(0.025, (section.end01 - section.start01) * 0.18) &&
+        this.wave.along01(this.alongM) >= section.end01 - this.wave.exitTaper01(index) &&
         this.wave.openFraction(index, this.simulationTimeS) > 0.24) {
       this.score.addBarrel(this.barrelS, this.elapsedS);
       this.trickLabel = 'Barrel exit';
@@ -290,7 +289,7 @@ export class SurfSimulation {
 
     const centerSurface = this.wave.surfaceAt(this.alongM, barrel.centerX,
       this.simulationTimeS);
-    const orbitRadius = Math.min(1.8, barrel.radiusM * 0.72);
+    const orbitRadius = Math.min(2.1, barrel.radiusM * 0.72);
     const orbitCenterY = centerSurface.position.y + orbitRadius;
     const orbitX = barrel.centerX + orbitRadius * Math.sin(this.wallRideAngle);
     const orbitY = orbitCenterY - orbitRadius * Math.cos(this.wallRideAngle);
@@ -327,12 +326,20 @@ export class SurfSimulation {
       this.moveOnBarrelWall(frame, dtS);
       return;
     }
-    if (this.state === 'barrel' && -frame.wallRide * this.wave.direction > 0) {
+    if (-frame.wallRide * this.wave.direction > 0) {
       const barrel = this.wave.barrelAt(this.alongM, this.position.x,
         this.position.y + 0.85, this.simulationTimeS);
       const section = barrel && this.map.wave.barrelSections[barrel.sectionIndex];
-      if (barrel?.inside && section && barrel.radiusM >= 1.6 &&
+      const nearHollow = barrel && Math.hypot(this.position.x - barrel.centerX,
+        this.position.y + 0.85 - barrel.centerY) <= barrel.radiusM * 1.25;
+      if (barrel && nearHollow && section && barrel.radiusM >= 1.6 &&
+          barrel.openFraction > 0.24 &&
           (section.end01 * this.map.wave.rideLengthM - this.alongM) > this.speedMps * 2.5) {
+        if (this.barrelSectionIndex !== barrel.sectionIndex) {
+          this.barrelSectionIndex = barrel.sectionIndex;
+          this.barrelS = 0;
+          this.wave.enterSection(barrel.sectionIndex, this.simulationTimeS);
+        }
         this.wallRideActive = true;
         this.wallRideEntry = { ...this.position };
         this.wallRideAngle = 0;
@@ -378,7 +385,7 @@ export class SurfSimulation {
       }
     } else if (this.barrelSectionIndex !== null) {
       const section = this.map.wave.barrelSections[this.barrelSectionIndex];
-      const exitFade = Math.min(0.025, (section.end01 - section.start01) * 0.18);
+      const exitFade = this.wave.exitTaper01(this.barrelSectionIndex);
       if (this.barrelS >= 0.3 && this.wave.along01(this.alongM) >= section.end01 - exitFade &&
           this.wave.openFraction(this.barrelSectionIndex, this.simulationTimeS) > 0.24) {
         this.score.addBarrel(this.barrelS, this.elapsedS);

@@ -37,6 +37,8 @@ test('the same folded wave contains the barrel and closes visibly over time', ()
   assert.ok(pitchedLip.x < wave.joinX - query!.radiusM * 2.2);
   assert.ok(roof.y > crest.y + 1);
   assert.ok(pitchedLip.y < crest.y);
+  const opening = wave.barrelAt(pipeline.wave.rideLengthM * 0.67, 0, 0, 0);
+  assert.ok(opening!.radiusM < query!.radiusM * 0.5);
   wave.enterSection(0, 0);
   const warning = wave.barrelAt(along, 0, 0, 12)!;
   assert.ok(warning.radiusM < query!.radiusM);
@@ -44,6 +46,21 @@ test('the same folded wave contains the barrel and closes visibly over time', ()
   assert.equal(wave.openFraction(0, 14), 0);
   wave.resetWave();
   assert.equal(wave.openFraction(0, 14), 1);
+});
+
+test('Mavericks rises into a hollow lip and peels down to an open shoulder', () => {
+  const wave = new WaveModel(mavericks);
+  const tubeAlong = mavericks.wave.rideLengthM * 0.27;
+  const shoulderAlong = mavericks.wave.rideLengthM * 0.43;
+  const crest = wave.crossSectionAt(tubeAlong, 0.78, 0);
+  const roof = wave.crossSectionAt(tubeAlong, 0.9, 0);
+  const lipTip = wave.crossSectionAt(tubeAlong, 1, 0);
+  const impact = wave.surfaceAt(tubeAlong, lipTip.x, 0).position;
+  const shoulder = wave.crossSectionAt(shoulderAlong, 0.78, 0);
+  assert.ok(roof.y > crest.y + 1.2);
+  assert.ok(lipTip.x < crest.x - 5);
+  assert.ok(lipTip.y > impact.y && lipTip.y - impact.y < 0.5);
+  assert.ok(crest.y > shoulder.y * 1.7);
 });
 
 test('a held W does not flip at takeoff, but a fresh air press does', () => {
@@ -58,15 +75,13 @@ test('a held W does not flip at takeoff, but a fresh air press does', () => {
   assert.equal(input.frame().trick.flipAxis, 0);
 });
 
-test('a held steering key needs a fresh press to start riding the barrel wall', () => {
+test('a held steering key drives the barrel wall ride without an extra press', () => {
   const input = new GameplayInput();
   input.press('a', true);
-  input.beginBarrel();
   assert.equal(input.frame().steer, -1);
-  assert.equal(input.frame().wallRide, 0);
-  input.release('a');
-  input.press('a', true);
   assert.equal(input.frame().wallRide, -1);
+  input.release('a');
+  assert.equal(input.frame().wallRide, 0);
   input.clear();
   assert.equal(input.frame().wallRide, 0);
 });
@@ -161,6 +176,20 @@ test('A can carry the board through a full loop inside the Mavericks barrel', ()
     sim.position.x, sim.simulationTimeS).position.y) < 0.05);
 });
 
+test('holding A automatically starts the Mavericks wall ride near the hollow', () => {
+  const sim = new SurfSimulation(mavericks, 'free-surf', 1,
+    new FixtureTrickController(), () => {});
+  const input = new GameplayInput();
+  sim.start();
+  input.press('a', true);
+  for (let i = 0; i < 60 * 9; i++) {
+    input.advance(1 / 60, true);
+    sim.step(input.frame());
+  }
+  assert.ok(sim.wallRideAngle >= Math.PI * 2);
+  assert.equal(sim.metrics.wipeouts, 0);
+});
+
 function breakDirectionFactor(direction: 'left' | 'right'): number {
   return direction === 'left' ? 1 : -1;
 }
@@ -204,14 +233,14 @@ test('simulation consumes one landing report and ends a timed run once', () => {
 
 test('a ridden barrel earns one action on a clean exit', () => {
   const map = { ...pipeline, wave: { ...pipeline.wave, barrelSections: [
-    { start01: 0.2, end01: 0.38, radiusM: 1.8, closeAfterEntryS: null },
+    { start01: 0.2, end01: 0.42, radiusM: 1.8, closeAfterEntryS: null },
   ] } };
   const sim = new SurfSimulation(map, 'free-surf', 1, new FixtureTrickController(), () => {});
   sim.start();
   sim.alongM = map.wave.rideLengthM * 0.22;
   const x = sim.wave.joinX - 1.8;
   sim.position = sim.wave.surfaceAt(sim.alongM, x, 0).position;
-  for (let i = 0; i < 600 && sim.alongM < map.wave.rideLengthM * 0.4; i++) sim.step(neutral);
+  for (let i = 0; i < 600 && sim.alongM < map.wave.rideLengthM * 0.44; i++) sim.step(neutral);
   assert.ok(sim.metrics.longestBarrelS > 3);
   assert.ok(sim.score.pendingCombo > 300);
   for (let i = 0; i < 200; i++) sim.step(neutral);

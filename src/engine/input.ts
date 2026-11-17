@@ -17,7 +17,6 @@ function normalize(key: string): string {
 export class GameplayInput {
   private held = new Set<string>();
   private blockedFlip = new Set<string>();
-  private blockedWallRide = new Set<string>();
   private chargingS: number | null = null;
   private releasedChargeS: number | null = null;
 
@@ -35,7 +34,6 @@ export class GameplayInput {
     if (!['w', 'a', 's', 'd', 'space', 'r'].includes(name)) return false;
     this.held.delete(name);
     this.blockedFlip.delete(name);
-    this.blockedWallRide.delete(name);
     if (name === 'space' && this.chargingS !== null) {
       this.releasedChargeS = this.chargingS;
       this.chargingS = null;
@@ -58,19 +56,12 @@ export class GameplayInput {
     this.releasedChargeS = null;
   }
 
-  beginBarrel(): void {
-    this.blockedWallRide.clear();
-    if (this.held.has('a')) this.blockedWallRide.add('a');
-    if (this.held.has('d')) this.blockedWallRide.add('d');
-  }
-
   frame(): ControlFrame {
     const jumpChargeS = this.releasedChargeS;
     this.releasedChargeS = null;
     return {
       steer: axis(this.held.has('a'), this.held.has('d')),
-      wallRide: axis(this.held.has('a') && !this.blockedWallRide.has('a'),
-        this.held.has('d') && !this.blockedWallRide.has('d')),
+      wallRide: axis(this.held.has('a'), this.held.has('d')),
       jumpChargeS,
       trick: {
         spinAxis: axis(this.held.has('a'), this.held.has('d')),
@@ -83,7 +74,6 @@ export class GameplayInput {
   clear(): void {
     this.held.clear();
     this.blockedFlip.clear();
-    this.blockedWallRide.clear();
     this.chargingS = null;
     this.releasedChargeS = null;
   }

@@ -12,9 +12,11 @@ import {
   PlaneGeometry,
   SphereGeometry,
   DodecahedronGeometry,
+  Vector2,
   type Scene,
 } from 'three';
 import type { EnvironmentHandle, GameSettings, MapDefinition } from '../shared/contracts';
+import { createWaterNormalMap } from '../engine/waterTexture';
 
 const zStart = -160;
 const zEnd = 780;
@@ -67,11 +69,14 @@ export function createMavericksEnvironment(
   const group = new Group();
   const previousFog = scene.fog;
   const oceanGeometry = new PlaneGeometry(2200, 2200);
+  const oceanNormal = createWaterNormalMap();
+  oceanNormal.repeat.set(88, 88);
   const oceanMaterial = new MeshPhongMaterial({ color: '#1b596d',
-    specular: '#6ca7ae', shininess: 75, side: DoubleSide });
+    specular: '#83b7bb', shininess: 95, side: DoubleSide,
+    normalMap: oceanNormal, normalScale: new Vector2(0.38, 0.38) });
   const ocean = new Mesh(oceanGeometry, oceanMaterial);
   ocean.rotation.x = -Math.PI / 2;
-  ocean.position.y = -0.06;
+  ocean.position.y = -0.09;
   group.add(ocean);
 
   const wetSand = new Color('#988c7a');
@@ -154,6 +159,7 @@ export function createMavericksEnvironment(
     update(timeS) {
       if (disposed) return;
       shorelineFoam.material.opacity = 0.49 + 0.09 * Math.sin(timeS * 1.5);
+      oceanNormal.offset.set(timeS * 0.0018, -timeS * 0.0011);
     },
     setSettings,
     dispose() {
@@ -162,6 +168,7 @@ export function createMavericksEnvironment(
       scene.remove(group);
       scene.fog = previousFog;
       oceanGeometry.dispose(); oceanMaterial.dispose();
+      oceanNormal.dispose();
       beach.geometry.dispose(); beach.material.dispose();
       bluff.geometry.dispose(); bluff.material.dispose();
       foamGeometry.dispose(); foamMaterial.dispose();
