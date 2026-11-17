@@ -48,6 +48,28 @@ test('held speed input does not flip at takeoff, but a fresh air press does', ()
   assert.equal(input.frame().trick.flipAxis, 0);
 });
 
+test('A steers left and D steers right on both break directions', () => {
+  for (const breakDirection of ['left', 'right'] as const) {
+    const map = { ...pipeline, wave: { ...pipeline.wave, breakDirection } };
+    const left = new SurfSimulation(map, 'free-surf', 1,
+      new FixtureTrickController(), () => {});
+    const right = new SurfSimulation(map, 'free-surf', 1,
+      new FixtureTrickController(), () => {});
+    left.start(); right.start();
+    const startX = left.position.x;
+    for (let i = 0; i < 30; i++) {
+      left.step({ ...neutral, steer: -1 });
+      right.step({ ...neutral, steer: 1 });
+    }
+    assert.ok((left.position.x - startX) * breakDirectionFactor(breakDirection) < 0);
+    assert.ok((right.position.x - startX) * breakDirectionFactor(breakDirection) > 0);
+  }
+});
+
+function breakDirectionFactor(direction: 'left' | 'right'): number {
+  return direction === 'left' ? 1 : -1;
+}
+
 test('combo applies repetition and multiplier once, then banks safely', () => {
   const score = new RuntimeScore();
   const report: LandingReport = { airId: 'a', quality: 'clean', family: 'spin',
@@ -117,4 +139,30 @@ test('a closing barrel wipes out the unbanked combo', () => {
   assert.equal(sim.metrics.wipeouts, 1);
   assert.equal(sim.score.pendingCombo, 0);
   assert.equal(events.filter((event) => event.type === 'wipeout').length, 1);
+});
+
+test('Pipeline permits its six-second barrel goal and a clean exit with pumping', () => {
+  const sim = new SurfSimulation(pipeline, 'free-surf', 1,
+    new FixtureTrickController(), () => {});
+  sim.start();
+  for (let i = 0; i < 60 * 18; i++) {
+    sim.step({ ...neutral, steer: i < 60 * 1.05 ? 1 : 0, throttle: 1 });
+  }
+  assert.ok(sim.metrics.longestBarrelS >= 6);
+  assert.ok(sim.score.score > 0);
+  assert.equal(sim.metrics.wipeouts, 0);
+});
+
+test('the short Teahupoo closeout leaves a 3.5-second rideable opening', () => {
+  const map = { ...pipeline, wave: { ...pipeline.wave, heightM: 6,
+    faceWidthM: 8, barrelSections: [{ start01: 0.2, end01: 0.65,
+      radiusM: 1.1, closeAfterEntryS: 4.5 }] } };
+  const wave = new WaveModel(map);
+  const along = map.wave.rideLengthM * 0.4;
+  const x = wave.joinX - 1.1;
+  wave.enterSection(0, 0);
+  const riderY = wave.surfaceAt(along, x, 3.5).position.y + 0.85;
+  assert.equal(wave.barrelAt(along, x, riderY, 3.5)?.inside, true);
+  assert.ok(wave.barrelAt(along, x, riderY, 4.2)!.foam > 0.5);
+  assert.equal(wave.openFraction(0, 4.5), 0);
 });
