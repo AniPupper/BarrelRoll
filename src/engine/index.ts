@@ -48,7 +48,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   const renderer = new WebGLRenderer({ antialias: options.settings.quality !== 'low' });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.domElement.tabIndex = 0;
-  renderer.domElement.setAttribute('aria-label', 'BarrelRoll surfing game');
+  renderer.domElement.setAttribute('aria-label', 'BarrelRoll penguin surfing game');
   renderer.domElement.style.display = 'block';
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';

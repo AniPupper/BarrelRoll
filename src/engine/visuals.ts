@@ -1,18 +1,23 @@
 import {
   BufferGeometry,
   Color,
+  ConeGeometry,
   DoubleSide,
+  ExtrudeGeometry,
   Float32BufferAttribute,
   Group,
+  LineBasicMaterial,
+  LineLoop,
+  LineSegments,
   Mesh,
   MeshPhongMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   Points,
   PointsMaterial,
+  Shape,
   type Scene,
   SphereGeometry,
-  BoxGeometry,
-  CylinderGeometry,
   type Material,
 } from 'three';
 import type { GameSettings, RiderState } from '../shared/contracts';
@@ -117,52 +122,110 @@ export class SurferVisual {
   readonly group = new Group();
   readonly boardColor: MeshStandardMaterial;
   private readonly body = new Group();
+  private readonly flippers: Mesh[] = [];
   private readonly materials: Material[] = [];
-  private readonly geometries: Array<BoxGeometry | SphereGeometry | CylinderGeometry> = [];
+  private readonly geometries: BufferGeometry[] = [];
   private readonly sprayGeometry: BufferGeometry;
   private readonly sprayMaterial: PointsMaterial;
   private readonly spray: Points;
 
   constructor(settings: GameSettings, foamColor: string) {
-    this.boardColor = this.material(settings.boardColor, 0.25);
     const foam = new Color(foamColor);
-    const suit = this.material('#1b2839', 0.85);
-    const skin = this.material('#c89068', 0.9);
-    const accent = this.material('#f2e9d8', 0.5);
-    const finColor = this.material('#253c4d', 0.45);
-
-    const board = this.part(new SphereGeometry(1, 18, 10), this.boardColor,
-      [0, 0.08, 0], [0.36, 0.065, 1.1]);
-    this.group.add(board);
-    const fin = this.part(new BoxGeometry(0.04, 0.18, 0.24), finColor,
-      [0, -0.06, -0.68]);
-    this.group.add(fin);
-    const stripe = this.part(new BoxGeometry(0.055, 0.012, 1.38), accent,
-      [0, 0.145, 0]);
-    this.group.add(stripe);
-
-    const legs = [
-      { x: -0.15, z: 0.34, tilt: -0.25 },
-      { x: 0.15, z: -0.26, tilt: 0.2 },
+    const ice = new MeshPhysicalMaterial({ color: '#bceaf4', roughness: 0.14,
+      metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.08,
+      transparent: true, opacity: 0.9, side: DoubleSide });
+    this.materials.push(ice);
+    const outline: Array<[number, number]> = [
+      [0, 1.22], [0.20, 1.09], [0.34, 0.68], [0.40, 0.08],
+      [0.36, -0.52], [0.24, -0.95], [0.10, -1.16], [0, -1.20],
+      [-0.10, -1.16], [-0.24, -0.95], [-0.36, -0.52],
+      [-0.40, 0.08], [-0.34, 0.68], [-0.20, 1.09],
     ];
-    for (const leg of legs) {
-      const limb = this.part(new CylinderGeometry(0.083, 0.09, 0.7, 8), suit,
-        [leg.x, 0.48, leg.z]);
-      limb.rotation.x = leg.tilt;
-      this.body.add(limb);
-      this.body.add(this.part(new SphereGeometry(0.115, 10, 8), skin,
-        [leg.x, 0.18, leg.z + leg.tilt * 0.14], [1.15, 0.48, 1.6]));
+    const boardShape = new Shape();
+    boardShape.moveTo(...outline[0]);
+    for (const point of outline.slice(1)) boardShape.lineTo(...point);
+    boardShape.closePath();
+    const boardGeometry = new ExtrudeGeometry(boardShape, { depth: 0.1,
+      bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.035,
+      bevelSegments: 2, steps: 1 });
+    this.geometries.push(boardGeometry);
+    const board = new Mesh(boardGeometry, ice);
+    board.rotation.x = Math.PI / 2;
+    board.position.y = 0.13;
+    this.group.add(board);
+
+    const railGeometry = new BufferGeometry();
+    railGeometry.setAttribute('position', new Float32BufferAttribute(
+      outline.flatMap(([x, z]) => [x, 0.165, z]), 3));
+    const railMaterial = new LineBasicMaterial({ color: '#f1ffff',
+      transparent: true, opacity: 0.85 });
+    this.geometries.push(railGeometry);
+    this.materials.push(railMaterial);
+    this.group.add(new LineLoop(railGeometry, railMaterial));
+
+    const crackGeometry = new BufferGeometry();
+    crackGeometry.setAttribute('position', new Float32BufferAttribute([
+      -0.22, 0.166, 0.70, -0.03, 0.166, 0.35,
+      -0.03, 0.166, 0.35, 0.16, 0.166, 0.23,
+      0.23, 0.166, -0.54, 0.02, 0.166, -0.31,
+      0.02, 0.166, -0.31, -0.14, 0.166, -0.40,
+    ], 3));
+    const crackMaterial = new LineBasicMaterial({ color: '#e6ffff',
+      transparent: true, opacity: 0.65 });
+    this.geometries.push(crackGeometry);
+    this.materials.push(crackMaterial);
+    this.group.add(new LineSegments(crackGeometry, crackMaterial));
+
+    this.boardColor = this.material(settings.boardColor, 0.24);
+    this.boardColor.transparent = true;
+    this.boardColor.opacity = 0.38;
+    this.group.add(this.part(new SphereGeometry(1, 12, 8), this.boardColor,
+      [0, 0.175, 0], [0.055, 0.012, 0.72]));
+    const iceFin = this.material('#a9e6f4', 0.18);
+    iceFin.transparent = true;
+    iceFin.opacity = 0.75;
+    for (const x of [-0.14, 0.14]) {
+      const fin = this.part(new ConeGeometry(0.11, 0.28, 4), iceFin,
+        [x, -0.07, -0.72], [0.65, 1, 0.65]);
+      fin.rotation.z = Math.PI;
+      this.group.add(fin);
     }
-    this.body.add(this.part(new SphereGeometry(1, 14, 10), suit,
-      [0, 1.02, 0.03], [0.23, 0.37, 0.18]));
-    this.body.add(this.part(new SphereGeometry(0.17, 12, 10), skin,
-      [0, 1.49, 0.11]));
+
+    const feathers = this.material('#17242b', 0.9);
+    const belly = this.material('#f3f5ed', 0.88);
+    const beakAndFeet = this.material('#e3a048', 0.65);
+    const eyes = this.material('#111c23', 0.35);
+    this.body.add(this.part(new SphereGeometry(1, 22, 16), feathers,
+      [0, 0.82, 0], [0.34, 0.56, 0.31]));
+    this.body.add(this.part(new SphereGeometry(1, 18, 14), belly,
+      [0, 0.84, 0.265], [0.25, 0.42, 0.085]));
+    this.body.add(this.part(new SphereGeometry(1, 20, 16), feathers,
+      [0, 1.46, 0.02], [0.27, 0.28, 0.27]));
+    this.body.add(this.part(new SphereGeometry(1, 14, 10), belly,
+      [0, 1.64, -0.07], [0.23, 0.065, 0.17]));
     for (const side of [-1, 1]) {
-      const arm = this.part(new CylinderGeometry(0.055, 0.07, 0.61, 8), skin,
-        [side * 0.33, 1.05, 0.12]);
-      arm.rotation.z = side * 0.8;
-      this.body.add(arm);
+      this.body.add(this.part(new SphereGeometry(1, 12, 10), belly,
+        [side * 0.29, 0.84, -0.02], [0.055, 0.30, 0.16]));
+      const eyePatch = this.part(new SphereGeometry(1, 12, 10), belly,
+        [side * 0.125, 1.49, 0.235], [0.095, 0.12, 0.045]);
+      this.body.add(eyePatch);
+      this.body.add(this.part(new SphereGeometry(1, 10, 8), eyes,
+        [side * 0.125, 1.49, 0.278], [0.035, 0.05, 0.02]));
+      const flipper = this.part(new SphereGeometry(1, 14, 10), feathers,
+        [side * 0.39, 0.92, 0.015], [0.13, 0.36, 0.13]);
+      this.flippers.push(flipper);
+      this.body.add(flipper);
+      this.body.add(this.part(new SphereGeometry(1, 12, 8), beakAndFeet,
+        [side * 0.16, 0.22, side < 0 ? 0.27 : -0.19], [0.15, 0.055, 0.23]));
     }
+    const beak = this.part(new ConeGeometry(0.105, 0.25, 5), beakAndFeet,
+      [0, 1.34, 0.31]);
+    beak.rotation.x = Math.PI / 2;
+    this.body.add(beak);
+    const tail = this.part(new ConeGeometry(0.12, 0.28, 5), feathers,
+      [0, 0.47, -0.33]);
+    tail.rotation.x = -Math.PI / 2;
+    this.body.add(tail);
     this.group.add(this.body);
 
     const count = 70;
@@ -181,7 +244,7 @@ export class SurferVisual {
     return material;
   }
 
-  private part(geometry: BoxGeometry | SphereGeometry | CylinderGeometry,
+  private part(geometry: BufferGeometry,
     material: MeshStandardMaterial, position: [number, number, number],
     scale?: [number, number, number]): Mesh {
     this.geometries.push(geometry);
@@ -199,11 +262,16 @@ export class SurferVisual {
     const state: RiderState = sim.state;
     const crouch = state === 'barrel' ? 0.25 : state === 'airborne' ? -0.08 :
       state === 'wipeout' ? 0.6 : Math.max(0, (sim.speedMps - 14) * 0.012);
-    this.body.position.y = -crouch;
+    this.body.position.y = -crouch * 0.14;
+    this.body.scale.y = state === 'barrel' ? 0.95 : 1;
     this.body.rotation.x = state === 'wipeout' ? 0.75 : state === 'airborne' ? -0.1 :
       Math.max(-0.18, Math.min(0.12, sim.lateralMps * 0.02));
     this.body.rotation.z = state === 'wipeout' ? 0.4 : state === 'airborne' ? 0 :
       Math.max(-0.22, Math.min(0.22, -sim.lateralMps * sim.wave.direction * 0.028));
+    const flipperLift = state === 'airborne' || sim.wallRideActive ? 0.48 :
+      state === 'barrel' ? 0.22 : 0.12;
+    this.flippers[0].rotation.z = 0.35 + flipperLift;
+    this.flippers[1].rotation.z = -0.35 - flipperLift;
     const positions = this.sprayGeometry.getAttribute('position');
     const count = settings.quality === 'low' ? 20 : settings.quality === 'medium' ? 42 : 70;
     const active = state !== 'airborne' && sim.speedMps > 3;

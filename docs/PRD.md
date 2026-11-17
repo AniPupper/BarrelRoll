@@ -6,9 +6,9 @@
 **Status:** Build specification; implementation is in progress.
 **Canonical PRD:** This file replaces the two separate owner PRDs.
 
-BarrelRoll is a single-player, 3D browser surfing game inspired by [Cork 7](https://cork7.com/). Players carve across waves, ride inside curling barrels, launch from the lip, combine exaggerated spins and flips, and land back on the water. The camera follows behind the surfer. Famous surfing locations must have different wave behavior as well as different scenery.
+BarrelRoll is a single-player, 3D browser surfing game inspired by [Cork 7](https://cork7.com/). A penguin rides a surfboard made of ice, carving across waves, riding inside curling barrels, launching from the lip, combining exaggerated spins and flips, and landing back on the water. The camera follows behind the penguin. Famous surfing locations must have different wave behavior as well as different scenery.
 
-**Confirmed requirements:** desktop/laptop browser on Mac and Windows; A/D steering, W/S air flips, and Space to jump; wave-driven forward speed; a camera behind the surfer; exaggerated and impossible tricks; playable wave barrels; multiple famous destinations, starting with Mavericks; one game built together in the same GitHub repository.
+**Confirmed requirements:** desktop/laptop browser on Mac and Windows; A/D steering, W/S air flips, and Space to jump; wave-driven forward speed; a camera behind the penguin; an ice surfboard; exaggerated and impossible tricks; playable wave barrels; multiple famous destinations, starting with Mavericks; one game built together in the same GitHub repository.
 
 **First-release defaults:** Free Surf and a 120-second Score Run; all six maps available immediately; local records, medals, and cosmetic board colors; stylized 3D art; HTML/CSS, TypeScript, Three.js, and Vite. Use one application, one renderer, one physics clock, and one lockfile. Multiplayer, accounts, online leaderboards, controller/mobile controls, video export, and full fluid simulation are later work.
 
@@ -17,7 +17,7 @@ A new player should be surfing, jumping, and attempting a trick within a minute.
 | Work | Teddy | Anika |
 | --- | --- | --- |
 | Surfing | Movement, jumping, water contact, air trajectory, barrels, recovery | Air rotations, flips, spins, corks, trick recognition, landing assessment |
-| Presentation | Surfer/board model and animation, wave, camera, gameplay spray; Mavericks map and scenery | Five remaining locations, scenery, menus, HUD, audio |
+| Presentation | Penguin/ice-board model and animation, wave, camera, gameplay spray; Mavericks map and scenery | Five remaining locations, scenery, menus, HUD, audio |
 | Game systems | Runtime scoring, timer, challenges, medals, saved progress, board-color unlocks | Present scores, challenges, medals, results, and settings through the UI |
 | Integration | Engine, shared contracts, progression API | App wiring, project setup, dependencies, deployment |
 
@@ -83,7 +83,7 @@ The rideable wave must curl overhead into a visible hollow tube. The surfer trav
 - Reduced Motion disables shake and large FOV shifts. Keep controls and trick timing unchanged.
 - Engine events drive Anika’s HUD and audio. Do not place DOM menus or permanent HUD elements inside the engine.
 
-- Own the surfer/board model and crouch, extension, and landing animation. Apply the orientation and trick label produced by Anika’s module. Body and board stay connected; neither the camera nor the heading reference spins with the model.
+- Own the penguin/ice-board model and crouch, flipper, extension, and landing animation. Apply the orientation and trick label produced by Anika’s module. Body and board stay connected; neither the camera nor the heading reference spins with the model.
 - Apply Anika’s landing outcome to speed, pose recovery, splash, and the engine state; the engine never independently reclassifies a normal water landing. Collisions with closing wave lips may cause an immediate engine wipeout without invoking a successful landing.
 
 ### T4. Runtime scoring and run rules
@@ -128,7 +128,7 @@ Each map has three independently earned medals. Evaluate them from the engine’
 
 These are provisional thresholds. Playtest every challenge before release and lower targets that are impossible or tedious. Do not make a medal depend on an event or metric absent from the shared contract. A special “double backflip + 1080” achievement would need an explicit metric extension first.
 
-- Unlock three additional board colors at 3, 6, and 12 total medals. Colors must not change speed, handling, or jump strength.
+- Unlock three additional accent tints for the ice board at 3, 6, and 12 total medals. Tints must not change speed, handling, or jump strength; the board remains visibly made of ice.
 - Keep every map playable from the beginning. Progression rewards mastery without blocking a teammate’s demo.
 - Keep best scores separate by map and mode; an unlimited Free Surf score must not compete with a timed Score Run record.
 - Use the engine’s `score` and `bestCombo` fields directly. `score-banked` is for feedback; do not add it again to a completed result.

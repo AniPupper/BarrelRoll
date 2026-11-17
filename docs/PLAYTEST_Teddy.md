@@ -17,6 +17,7 @@ Browser: the user opened the temporary Codex preview; browser version was not ca
 | Hold W while on the wave in the fixed-step simulation | W does not change forward speed | Speed matched an otherwise identical ride with no W input; the wave changed speed automatically |
 | Enter the Mavericks barrel, release the steering key, then press A for a wall ride | The board loops around the tube and can reverse with D or settle back onto the face | Fixed-step simulation completed more than one full turn, reversed with D, returned to the wave face, and recorded no wipeout |
 | Inspect the first wall-ride preview at the top of the loop | The camera stays within the tube and the wave reads as a barrel | The user reported an awkward top-of-loop camera and an odd-looking tube. The camera now tracks the hollow's center and the lip pitches farther down toward the wave face; a retest is pending |
+| Inspect the new rider and board | A penguin rides a surfboard made of ice | Replaced the development rider and board with an original penguin model and a translucent, faceted ice board; visual retest pending |
 | Inspect the refreshed Mavericks beach, bluff, camera, barrel, and carve feel | The level looks and feels like a surfing location | Pending user playtest of the refreshed preview |
 | Integrate Anika's real trick controller, five remaining maps, and UI | A real landed trick, Score Run results, and saved medals appear in the app | Pending: those modules and the production app scaffold are not yet in this repository |
 
@@ -32,4 +33,4 @@ Browser: the user opened the temporary Codex preview; browser version was not ca
 
 The automated challenge checks prove that each rule can be evaluated from `RunResult`. The Mavericks and Pipeline barrel goals were also reached by fixed-step simulation. Other goals still need playtesting with the merged maps and real trick controller.
 
-The temporary preview contains Teddy's wave, surfer, Mavericks scenery, and a development-only trick fixture. It does not contain Anika's actual tricks, menus, or game HUD. The new barrel shape, wall ride, and camera still need a direct user retest before release.
+The temporary preview contains Teddy's wave, penguin, ice board, Mavericks scenery, and a development-only trick fixture. It does not contain Anika's actual tricks, menus, or game HUD. The new barrel shape, wall ride, camera, and rider still need a direct user retest before release.
