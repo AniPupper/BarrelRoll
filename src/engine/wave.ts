@@ -50,13 +50,13 @@ export class WaveModel {
     return clamp(alongM / this.map.wave.rideLengthM, 0, 1);
   }
 
-  private peelingPeak(alongM: number): number {
+  private peelingPeak(alongM: number, aheadStartM: number, aheadFadeM: number): number {
     if (this.peelAlongM === null) return 1;
     const fromRider = alongM - this.peelAlongM;
-    // Keep a short hollow around the rider. The lip has already fallen behind,
-    // while the open shoulder is visible a few board-lengths ahead.
+    // The face becomes a shoulder ahead; its projecting lip rolls back sooner
+    // so the rider can see through the opening rather than into a water wall.
     return smoothstep((fromRider + 30) / 18) *
-      (1 - smoothstep((fromRider - 6) / 20));
+      (1 - smoothstep((fromRider - aheadStartM) / aheadFadeM));
   }
 
   whitewaterAt(alongM: number): number {
@@ -81,7 +81,8 @@ export class WaveModel {
       const fallEnd = Math.min(1, section.end01 + 0.045);
       const fall = 1 - smoothstep((along - fallStart) /
         Math.max(0.001, fallEnd - fallStart));
-      scale = Math.max(scale, 0.46 + 0.54 * rise * fall * this.peelingPeak(alongM));
+      scale = Math.max(scale, 0.46 + 0.54 * rise * fall *
+        this.peelingPeak(alongM, 6, 20));
     }
     return scale;
   }
@@ -150,7 +151,7 @@ export class WaveModel {
     const edge = smoothstep((along - section.start01) / entryFade) *
       smoothstep((section.end01 - along) / exitFade);
     const rollingShape = 0.92 + 0.08 * Math.sin(alongM * 0.09 - timeS * 0.45 + this.phase);
-    return 0.12 + section.radiusM * edge * this.peelingPeak(alongM) *
+    return 0.12 + section.radiusM * edge * this.peelingPeak(alongM, 0, 3) *
       this.openFraction(index, timeS) * rollingShape;
   }
 

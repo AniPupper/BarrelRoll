@@ -26,11 +26,12 @@ import {
 import type { GameSettings, RiderState } from '../shared/contracts';
 import type { SurfSimulation } from './simulation';
 import type { WaveModel } from './wave';
-import { createWaterNormalMap } from './waterTexture';
+import { createSprayTexture, createWaterNormalMap } from './waterTexture';
 
 export class WaveVisual {
   readonly mesh: Mesh<BufferGeometry, MeshPhongMaterial>;
   readonly lipMesh: Mesh<BufferGeometry, MeshPhysicalMaterial>;
+  readonly lipFoam: Mesh<BufferGeometry, MeshBasicMaterial>;
   readonly impactFoam: Mesh<BufferGeometry, MeshBasicMaterial>;
   readonly curlSpray: Points;
   private readonly rows = 176;
@@ -40,6 +41,7 @@ export class WaveVisual {
   private readonly foam: Color;
   private readonly wave: WaveModel;
   private readonly waterNormal: DataTexture;
+  private readonly sprayTexture: DataTexture;
 
   constructor(wave: WaveModel, waterColor: string, foamColor: string) {
     this.wave = wave;
@@ -57,9 +59,15 @@ export class WaveVisual {
     const lipMaterial = new MeshPhysicalMaterial({ vertexColors: true, side: DoubleSide,
       roughness: 0.17, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.12,
       normalMap: this.waterNormal, normalScale: new Vector2(0.25, 0.25),
-      transparent: true, opacity: 0.68, depthWrite: false, forceSinglePass: true });
+      transparent: true, opacity: 0.52, depthWrite: false, forceSinglePass: true });
     this.lipMesh = new Mesh(lipGeometry, lipMaterial);
     this.lipMesh.frustumCulled = false;
+    this.lipFoam = new Mesh(this.makeSheet(4, 0.965, 1), new MeshBasicMaterial({
+      color: foamColor, transparent: true, opacity: 0.38,
+      depthWrite: false, side: DoubleSide,
+    }));
+    this.lipFoam.frustumCulled = false;
+    this.lipFoam.renderOrder = 1;
     this.impactFoam = new Mesh(this.makeSheet(4), new MeshBasicMaterial({
       vertexColors: true, transparent: true, opacity: 0.58,
       depthWrite: false, side: DoubleSide,
@@ -68,7 +76,9 @@ export class WaveVisual {
     const sprayGeometry = new BufferGeometry();
     sprayGeometry.setAttribute('position',
       new Float32BufferAttribute(new Float32Array(480 * 3), 3));
-    const sprayMaterial = new PointsMaterial({ color: foamColor, size: 0.32,
+    this.sprayTexture = createSprayTexture();
+    const sprayMaterial = new PointsMaterial({ color: foamColor, size: 0.13,
+      map: this.sprayTexture, alphaTest: 0.03,
       transparent: true, opacity: 0.72, depthWrite: false });
     this.curlSpray = new Points(sprayGeometry, sprayMaterial);
     this.curlSpray.frustumCulled = false;
@@ -101,13 +111,46 @@ export class WaveVisual {
     return geometry;
   }
 
+  private alongSamples(): Float32Array {
+    const samples = new Float32Array(this.rows + 1);
+    const length = this.wave.map.wave.rideLengthM;
+    const peel = this.wave.peelPositionM;
+    if (peel === null) {
+      for (let row = 0; row <= this.rows; row++) samples[row] = length * row / this.rows;
+      return samples;
+    }
+    const nearStart = Math.max(0, peel - 36);
+    const nearEnd = Math.min(length, peel + 28);
+    const nearRows = 104;
+    const farRows = this.rows - nearRows;
+    const beforeLength = nearStart;
+    const afterLength = length - nearEnd;
+    const beforeRows = beforeLength === 0 ? 0 : afterLength === 0 ? farRows :
+      Math.max(1, Math.min(farRows - 1,
+        Math.round(farRows * beforeLength / (beforeLength + afterLength))));
+    const afterRows = farRows - beforeRows;
+    for (let row = 0; row <= this.rows; row++) {
+      if (row <= beforeRows) {
+        samples[row] = beforeRows === 0 ? 0 : nearStart * row / beforeRows;
+      } else if (row <= beforeRows + nearRows) {
+        samples[row] = nearStart + (nearEnd - nearStart) *
+          (row - beforeRows) / nearRows;
+      } else {
+        samples[row] = nearEnd + (length - nearEnd) *
+          (row - beforeRows - nearRows) / Math.max(1, afterRows);
+      }
+    }
+    return samples;
+  }
+
   private updateSheet(geometry: BufferGeometry, columns: number,
-    startU: number, endU: number, timeS: number): void {
+    startU: number, endU: number, timeS: number, alongSamples: Float32Array): void {
     const positions = geometry.getAttribute('position');
     const colors = geometry.getAttribute('color');
+    const uvs = geometry.getAttribute('uv');
     const tint = new Color();
     for (let row = 0; row <= this.rows; row++) {
-      const alongM = this.wave.map.wave.rideLengthM * row / this.rows;
+      const alongM = alongSamples[row];
       const barrel = this.wave.barrelAt(alongM, 0, 0, timeS);
       const whitewater = this.wave.whitewaterAt(alongM);
       const impactX = this.wave.crossSectionAt(alongM, 1, timeS).x;
@@ -116,6 +159,7 @@ export class WaveVisual {
         const index = row * (columns + 1) + column;
         const point = this.wave.crossSectionAt(alongM, u, timeS);
         positions.setXYZ(index, point.x, point.y, point.z);
+        uvs.setXY(index, u, alongM / this.wave.map.wave.rideLengthM);
         const crestBreak = 0.78 + 0.22 * Math.sin(alongM * 0.19 - timeS * 2.1 + u * 13);
         const curl = Math.max(0, (u - 0.78) / 0.22);
         const lipFoam = Math.pow(Math.max(0, (curl - 0.70) / 0.30), 1.1) * crestBreak;
@@ -145,18 +189,21 @@ export class WaveVisual {
     }
     positions.needsUpdate = true;
     colors.needsUpdate = true;
+    uvs.needsUpdate = true;
     geometry.computeVertexNormals();
   }
 
   update(timeS: number): void {
     this.waterNormal.offset.set(timeS * 0.005, -timeS * 0.012);
-    this.updateSheet(this.mesh.geometry, this.faceColumns, 0, 0.78, timeS);
-    this.updateSheet(this.lipMesh.geometry, this.lipColumns, 0.78, 1, timeS);
+    const alongSamples = this.alongSamples();
+    this.updateSheet(this.mesh.geometry, this.faceColumns, 0, 0.78, timeS, alongSamples);
+    this.updateSheet(this.lipMesh.geometry, this.lipColumns, 0.78, 1, timeS, alongSamples);
+    this.updateSheet(this.lipFoam.geometry, 4, 0.965, 1, timeS, alongSamples);
     const foamPositions = this.impactFoam.geometry.getAttribute('position');
     const foamColors = this.impactFoam.geometry.getAttribute('color');
     const foamTint = new Color();
     for (let row = 0; row <= this.rows; row++) {
-      const alongM = this.wave.map.wave.rideLengthM * row / this.rows;
+      const alongM = alongSamples[row];
       const tip = this.wave.crossSectionAt(alongM, 1, timeS);
       const radius = this.wave.barrelAt(alongM, 0, 0, timeS)?.radiusM ?? 0;
       const whitewater = this.wave.whitewaterAt(alongM);
@@ -216,9 +263,12 @@ export class WaveVisual {
     this.mesh.material.dispose();
     this.lipMesh.geometry.dispose();
     this.lipMesh.material.dispose();
+    this.lipFoam.geometry.dispose();
+    this.lipFoam.material.dispose();
     this.impactFoam.geometry.dispose();
     this.impactFoam.material.dispose();
     this.waterNormal.dispose();
+    this.sprayTexture.dispose();
     this.curlSpray.geometry.dispose();
     (this.curlSpray.material as PointsMaterial).dispose();
   }
@@ -233,6 +283,7 @@ export class SurferVisual {
   private readonly geometries: BufferGeometry[] = [];
   private readonly sprayGeometry: BufferGeometry;
   private readonly sprayMaterial: PointsMaterial;
+  private readonly sprayTexture: DataTexture;
   private readonly spray: Points;
 
   constructor(settings: GameSettings, foamColor: string) {
@@ -338,7 +389,9 @@ export class SurferVisual {
     this.sprayGeometry = new BufferGeometry();
     this.sprayGeometry.setAttribute('position',
       new Float32BufferAttribute(new Float32Array(count * 3), 3));
-    this.sprayMaterial = new PointsMaterial({ color: foam, size: 0.11,
+    this.sprayTexture = createSprayTexture();
+    this.sprayMaterial = new PointsMaterial({ color: foam, size: 0.075,
+      map: this.sprayTexture, alphaTest: 0.03,
       transparent: true, opacity: 0.62, depthWrite: false });
     this.spray = new Points(this.sprayGeometry, this.sprayMaterial);
     this.spray.frustumCulled = false;
@@ -410,5 +463,6 @@ export class SurferVisual {
     for (const material of this.materials) material.dispose();
     this.sprayGeometry.dispose();
     this.sprayMaterial.dispose();
+    this.sprayTexture.dispose();
   }
 }

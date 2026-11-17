@@ -37,3 +37,25 @@ export function createWaterNormalMap(): DataTexture {
   texture.needsUpdate = true;
   return texture;
 }
+
+export function createSprayTexture(): DataTexture {
+  const size = 32;
+  const pixels = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const radius = Math.hypot((x + 0.5 - size / 2) / (size / 2),
+        (y + 0.5 - size / 2) / (size / 2));
+      const alpha = Math.pow(Math.max(0, 1 - radius * radius), 2);
+      const index = (y * size + x) * 4;
+      pixels[index] = 255;
+      pixels[index + 1] = 255;
+      pixels[index + 2] = 255;
+      pixels[index + 3] = Math.round(alpha * 255);
+    }
+  }
+  const texture = new DataTexture(pixels, size, size, RGBAFormat);
+  texture.magFilter = LinearFilter;
+  texture.minFilter = LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}

@@ -69,11 +69,14 @@ test('the Mavericks break crashes behind the rider and stays open ahead', () => 
   wave.setPeelPosition(riderAlong);
   const behind = riderAlong - 28;
   const ahead = riderAlong + 28;
+  const mouth = riderAlong + 4;
   const localTube = wave.barrelAt(riderAlong, 0, 0, 0)!;
   const broken = wave.barrelAt(behind, 0, 0, 0)!;
+  const openMouth = wave.barrelAt(mouth, 0, 0, 0)!;
   const shoulder = wave.barrelAt(ahead, 0, 0, 0)!;
   assert.ok(localTube.radiusM > 2.5);
   assert.ok(broken.radiusM < 0.2);
+  assert.ok(openMouth.radiusM < 0.2);
   assert.ok(shoulder.radiusM < 0.2);
   assert.ok(wave.whitewaterAt(behind) > 0.8);
   assert.equal(wave.whitewaterAt(ahead), 0);

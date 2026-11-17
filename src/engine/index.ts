@@ -63,7 +63,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   const waveVisual = new WaveVisual(simulation.wave, options.map.visual.waterColor,
     options.map.visual.foamColor);
   const surfer = new SurferVisual(options.settings, options.map.visual.foamColor);
-  scene.add(waveVisual.mesh, waveVisual.lipMesh, waveVisual.impactFoam,
+  scene.add(waveVisual.mesh, waveVisual.lipMesh, waveVisual.lipFoam, waveVisual.impactFoam,
     waveVisual.curlSpray, surfer.group);
   surfer.addSprayTo(scene);
   let environment: EnvironmentHandle;
@@ -126,9 +126,11 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     const onWall = simulation.wallRideActive;
     const barrel = inBarrel ? simulation.wave.barrelAt(simulation.alongM, 0, 0,
       simulation.simulationTimeS) : null;
+    const barrelCameraX = barrel ? barrel.centerX - Math.min(3,
+      Math.max(0, (options.map.wave.barrelSections[barrel.sectionIndex].radiusM - 1.2) * 1.5)) : 0;
     const distance = barrel ? onWall ? 7 : 5.3 : 8 + Math.min(4, airHeight * 0.22);
     const desired = barrel ?
-      new Vector3(barrel.centerX, barrel.centerY - Math.min(0.5, barrel.radiusM * 0.2), rider.z)
+      new Vector3(barrelCameraX, barrel.centerY - Math.min(0.5, barrel.radiusM * 0.2), rider.z)
         .addScaledVector(new Vector3(0, 0, simulation.wave.direction), -distance) :
       rider.clone().addScaledVector(heading, -distance);
     if (!barrel) desired.y += 3.2 + Math.min(2, airHeight * 0.13);
@@ -139,7 +141,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     // Look ahead mainly along the wave. Leading the lateral heading by several
     // meters made a rightward carve appear to move left on screen.
     const target = barrel ?
-      new Vector3(barrel.centerX, barrel.centerY + 0.15,
+      new Vector3(barrelCameraX, barrel.centerY + 0.15,
         rider.z + simulation.wave.direction * 7) :
       rider.clone().addScaledVector(new Vector3(0, 0, simulation.wave.direction), 5);
     if (!barrel) {
