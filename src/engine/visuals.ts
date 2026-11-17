@@ -21,8 +21,9 @@ import type { WaveModel } from './wave';
 
 export class WaveVisual {
   readonly mesh: Mesh<BufferGeometry, MeshPhongMaterial>;
+  readonly curlSpray: Points;
   private readonly rows = 176;
-  private readonly columns = 28;
+  private readonly columns = 52;
   private readonly base: Color;
   private readonly foam: Color;
   private readonly wave: WaveModel;
@@ -48,6 +49,13 @@ export class WaveVisual {
       shininess: 80, specular: new Color('#8bd8d5') });
     this.mesh = new Mesh(geometry, material);
     this.mesh.frustumCulled = false;
+    const sprayGeometry = new BufferGeometry();
+    sprayGeometry.setAttribute('position',
+      new Float32BufferAttribute(new Float32Array(240 * 3), 3));
+    const sprayMaterial = new PointsMaterial({ color: foamColor, size: 0.24,
+      transparent: true, opacity: 0.76, depthWrite: false });
+    this.curlSpray = new Points(sprayGeometry, sprayMaterial);
+    this.curlSpray.frustumCulled = false;
     this.update(0);
   }
 
@@ -63,20 +71,45 @@ export class WaveVisual {
         const index = row * (this.columns + 1) + column;
         const point = this.wave.crossSectionAt(alongM, u, timeS);
         positions.setXYZ(index, point.x, point.y, point.z);
-        const lipFoam = Math.max(0, (u - 0.86) / 0.14);
-        const closingFoam = (barrel?.foam ?? 0) * Math.max(0, (u - 0.68) / 0.32);
-        tint.copy(this.base).lerp(this.foam, Math.min(0.95, lipFoam * 0.58 + closingFoam * 0.48));
+        const crestBreak = 0.78 + 0.22 * Math.sin(alongM * 0.19 - timeS * 2.1 + u * 13);
+        const lipFoam = Math.pow(Math.max(0, (u - 0.945) / 0.055), 1.2) * crestBreak;
+        const closingFoam = (barrel?.foam ?? 0) * Math.max(0, (u - 0.66) / 0.34);
+        const insideShade = (barrel?.radiusM ?? 0) > 0.6 && u > 0.80 && u < 0.95 ?
+          0.58 + 0.13 * (u - 0.80) / 0.15 : 1;
+        const faceShade = u < 0.78 ? 0.82 + 0.18 * u / 0.78 : 1;
+        const faceGlow = u < 0.78 ? Math.pow(u / 0.78, 4) * 0.11 : 0;
+        const streak = u > 0.58 && u < 0.77 ?
+          Math.pow(Math.max(0, Math.sin(alongM * 0.17 - timeS * 1.6 + u * 19)), 10) * 0.14 : 0;
+        tint.copy(this.base).multiplyScalar(insideShade * faceShade).lerp(this.foam,
+          Math.min(0.97, lipFoam * 0.9 + closingFoam * 0.54 + streak + faceGlow));
         colors.setXYZ(index, tint.r, tint.g, tint.b);
       }
     }
     positions.needsUpdate = true;
     colors.needsUpdate = true;
     this.mesh.geometry.computeVertexNormals();
+    const sprayPositions = this.curlSpray.geometry.getAttribute('position');
+    for (let i = 0; i < sprayPositions.count; i++) {
+      const alongM = this.wave.map.wave.rideLengthM * (i + 0.5) / sprayPositions.count;
+      const barrel = this.wave.barrelAt(alongM, 0, 0, timeS);
+      if (!barrel || barrel.radiusM < 0.6) {
+        sprayPositions.setXYZ(i, 0, -1000, 0);
+        continue;
+      }
+      const phase = (timeS * (0.7 + (i % 5) * 0.06) + i * 0.43) % 1;
+      const u = 0.96 + 0.03 * Math.sin(i * 6.7);
+      const lip = this.wave.crossSectionAt(alongM, u, timeS);
+      sprayPositions.setXYZ(i, lip.x + Math.sin(i * 13.2) * 0.14,
+        lip.y + phase * 0.75, lip.z + Math.sin(i * 4.4) * 0.12);
+    }
+    sprayPositions.needsUpdate = true;
   }
 
   dispose(): void {
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
+    this.curlSpray.geometry.dispose();
+    (this.curlSpray.material as PointsMaterial).dispose();
   }
 }
 
@@ -169,6 +202,8 @@ export class SurferVisual {
     this.body.position.y = -crouch;
     this.body.rotation.x = state === 'wipeout' ? 0.75 : state === 'airborne' ? -0.1 :
       Math.max(-0.18, Math.min(0.12, sim.lateralMps * 0.02));
+    this.body.rotation.z = state === 'wipeout' ? 0.4 : state === 'airborne' ? 0 :
+      Math.max(-0.22, Math.min(0.22, -sim.lateralMps * sim.wave.direction * 0.028));
     const positions = this.sprayGeometry.getAttribute('position');
     const count = settings.quality === 'low' ? 20 : settings.quality === 'medium' ? 42 : 70;
     const active = state !== 'airborne' && sim.speedMps > 3;
@@ -178,11 +213,19 @@ export class SurferVisual {
         continue;
       }
       const phase = ((sim.simulationTimeS * (1.8 + (i % 7) * 0.12) + i * 0.31) % 1);
-      const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
-      const rear = -sim.wave.direction * (0.2 + phase * (1.4 + sim.speedMps * 0.04));
-      positions.setXYZ(i, sim.position.x + spread,
-        sim.position.y + 0.08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : 0.55),
-        sim.position.z + rear);
+      if (state === 'barrel' && i >= count * 0.45) {
+        const alongAhead = sim.alongM + 1 + phase * 7;
+        const u = 0.82 + ((i * 7) % 17) / 17 * 0.17;
+        const lip = sim.wave.crossSectionAt(alongAhead, u, sim.simulationTimeS);
+        positions.setXYZ(i, lip.x + Math.sin(i * 12.7) * 0.08,
+          lip.y - 0.12 - phase * 0.3, lip.z);
+      } else {
+        const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
+        const rear = -sim.wave.direction * (0.2 + phase * (1.4 + sim.speedMps * 0.04));
+        positions.setXYZ(i, sim.position.x + spread,
+          sim.position.y + 0.08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : 0.55),
+          sim.position.z + rear);
+      }
     }
     positions.needsUpdate = true;
     this.boardColor.color.set(settings.boardColor);

@@ -10,7 +10,7 @@ import { BOARD_COLOR_UNLOCKS, CHALLENGES } from './challenges';
 
 export const SAVE_KEY = 'barrelroll.save.v1';
 const HISTORY_LIMIT = 128;
-const MAP_IDS: readonly MapId[] = ['bells', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare'];
+const MAP_IDS: readonly MapId[] = ['mavericks', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare'];
 const MODES: readonly Mode[] = ['free-surf', 'score-run'];
 
 export const DEFAULT_SETTINGS: Readonly<GameSettings> = Object.freeze({

@@ -92,7 +92,8 @@ export class WaveModel {
     const along = this.along01(alongM);
     const edge = smoothstep((along - section.start01) / fade) *
       smoothstep((section.end01 - along) / fade);
-    return 0.12 + section.radiusM * edge * this.openFraction(index, timeS);
+    const rollingShape = 0.92 + 0.08 * Math.sin(alongM * 0.09 - timeS * 0.45 + this.phase);
+    return 0.12 + section.radiusM * edge * this.openFraction(index, timeS) * rollingShape;
   }
 
   crossSectionAt(alongM: number, u: number, timeS: number): Vec3 {
@@ -101,12 +102,16 @@ export class WaveModel {
       const x = this.joinX * clamp(u / 0.78, 0, 1);
       return { x, y: this.faceHeight(x, alongM, timeS), z };
     }
-    const angle = clamp((u - 0.78) / 0.22, 0, 1) * 2.75;
+    // Pitch the crest over and down toward the face. The same folded surface
+    // supplies the visible tube and the barrel occupancy calculation.
+    const curl = clamp((u - 0.78) / 0.22, 0, 1);
+    const angle = curl * 3.9;
     const radius = this.curlRadius(alongM, timeS);
     const joinY = this.faceHeight(this.joinX, alongM, timeS);
+    const fallingLip = curl * curl * curl;
     return {
-      x: this.joinX - radius + radius * Math.cos(angle),
-      y: joinY + radius * Math.sin(angle),
+      x: this.joinX - radius + radius * Math.cos(angle) - radius * 0.75 * fallingLip,
+      y: joinY + radius * Math.sin(angle) - radius * 0.33 * fallingLip,
       z,
     };
   }
@@ -120,7 +125,7 @@ export class WaveModel {
     const openFraction = this.openFraction(index, timeS);
     const distance = Math.hypot(x - centerX, riderCenterY - centerY);
     // The rider must be under the folded lip, within the hollow, and on the rideable face.
-    const inside = radius >= 0.62 && distance <= radius * 0.84 &&
+    const inside = radius >= 0.62 && distance <= radius * 0.90 &&
       x < this.joinX - radius * 0.18 && x > this.joinX - radius * 1.9;
     return {
       sectionIndex: index,
