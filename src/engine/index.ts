@@ -128,7 +128,12 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       camera.position.copy(desired);
       cameraReady = true;
     } else camera.position.lerp(desired, 1 - Math.exp(-6 * Math.max(0, frameDtS)));
-    const target = rider.clone().addScaledVector(heading, inBarrel ? 4 : 5);
+    // Look ahead mainly along the wave. Leading the lateral heading by several
+    // meters made a rightward carve appear to move left on screen.
+    const target = rider.clone().addScaledVector(
+      new Vector3(0, 0, simulation.wave.direction), inBarrel ? 4 : 5,
+    );
+    target.x += heading.x * 0.45;
     target.y += inBarrel ? 1.2 : 1.4;
     camera.up.set(0, 1, 0);
     camera.lookAt(target);

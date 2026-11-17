@@ -200,7 +200,7 @@ export class SurfSimulation {
     const acceleration = frame.throttle === 1 ? 4.3 : frame.throttle === -1 ? -7.5 : 0;
     const carveDrag = Math.abs(this.lateralMps) * 0.11;
     this.speedMps = clamp(this.speedMps + (acceleration - 0.38 - carveDrag) * dtS, 2.5, maxSpeed);
-    this.lateralMps += frame.steer * this.wave.direction * 9 * dtS;
+    this.lateralMps -= frame.steer * this.wave.direction * 9 * dtS;
     this.lateralMps *= Math.exp(-(frame.steer === 0 ? 3.2 : 0.9) * dtS);
     this.lateralMps = clamp(this.lateralMps, -6.5, 6.5);
     this.alongM += this.speedMps * dtS;
@@ -263,7 +263,7 @@ export class SurfSimulation {
   }
 
   private moveInAir(frame: ControlFrame, dtS: number): void {
-    this.lateralMps += frame.steer * this.wave.direction * 3.2 * dtS;
+    this.lateralMps -= frame.steer * this.wave.direction * 3.2 * dtS;
     this.lateralMps *= Math.exp(-0.28 * dtS);
     this.lateralMps = clamp(this.lateralMps, -6.5, 6.5);
     this.speedMps = Math.max(2.5, this.speedMps - 0.18 * dtS);

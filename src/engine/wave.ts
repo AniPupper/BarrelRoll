@@ -72,7 +72,11 @@ export class WaveModel {
     if (!section) return 0;
     const enteredAt = this.enteredAtS[index];
     if (section.closeAfterEntryS === null || enteredAt === null) return 1;
-    return clamp(1 - (timeS - enteredAt) / section.closeAfterEntryS, 0, 1);
+    // Preserve a rideable opening for most of the countdown, then make the
+    // approaching closeout readable before the lip becomes a collision hazard.
+    const elapsed = Math.max(0, timeS - enteredAt);
+    const delay = section.closeAfterEntryS;
+    return 1 - smoothstep((elapsed - delay * 0.72) / (delay * 0.28));
   }
 
   enterSection(index: number, timeS: number): void {
