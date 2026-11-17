@@ -63,6 +63,24 @@ test('Mavericks rises into a hollow lip and peels down to an open shoulder', () 
   assert.ok(crest.y > shoulder.y * 1.7);
 });
 
+test('the Mavericks break crashes behind the rider and stays open ahead', () => {
+  const wave = new WaveModel(mavericks);
+  const riderAlong = mavericks.wave.rideLengthM * 0.27;
+  wave.setPeelPosition(riderAlong);
+  const behind = riderAlong - 28;
+  const ahead = riderAlong + 28;
+  const localTube = wave.barrelAt(riderAlong, 0, 0, 0)!;
+  const broken = wave.barrelAt(behind, 0, 0, 0)!;
+  const shoulder = wave.barrelAt(ahead, 0, 0, 0)!;
+  assert.ok(localTube.radiusM > 2.5);
+  assert.ok(broken.radiusM < 0.2);
+  assert.ok(shoulder.radiusM < 0.2);
+  assert.ok(wave.whitewaterAt(behind) > 0.8);
+  assert.equal(wave.whitewaterAt(ahead), 0);
+  assert.ok(wave.crossSectionAt(riderAlong, 0.78, 0).y >
+    wave.crossSectionAt(ahead, 0.78, 0).y * 1.7);
+});
+
 test('a held W does not flip at takeoff, but a fresh air press does', () => {
   const input = new GameplayInput();
   input.press('w', true);

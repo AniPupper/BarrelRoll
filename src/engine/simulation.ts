@@ -137,6 +137,7 @@ export class SurfSimulation {
     this.score.reset();
     this.metrics = emptyMetrics();
     this.alongM = this.map.spawn.along01 * this.map.wave.rideLengthM;
+    this.wave.setPeelPosition(this.alongM);
     this.simulationTimeS = 0;
     this.elapsedS = 0;
     this.speedMps = Math.max(5, this.map.wave.peelSpeedMps * 1.06);
@@ -499,6 +500,7 @@ export class SurfSimulation {
     if (this.state !== 'wipeout') this.bank();
     this.wave.resetWave();
     this.alongM = this.map.spawn.along01 * this.map.wave.rideLengthM;
+    this.wave.setPeelPosition(this.alongM);
     this.lateralMps = 0;
     this.verticalMps = 0;
     this.barrelS = 0;
@@ -518,6 +520,7 @@ export class SurfSimulation {
     if (!this.started || this.ended) return;
     const actualDt = this.mode === 'score-run' ? Math.min(dtS, 120 - this.elapsedS) : dtS;
     if (actualDt <= 0) { this.finish('timer'); return; }
+    this.wave.setPeelPosition(this.alongM);
     this.previousPosition = { ...this.position };
     this.simulationTimeS += actualDt;
     this.elapsedS += actualDt;
@@ -534,6 +537,7 @@ export class SurfSimulation {
     else this.moveOnWave(frame, actualDt);
 
     if (this.alongM >= this.map.wave.rideLengthM) this.nextWave();
+    this.wave.setPeelPosition(this.alongM);
     const banked = this.score.tick(this.elapsedS,
       this.state === 'surfing' && this.barrelSectionIndex === null);
     if (banked > 0) this.emit({ type: 'score-banked', runId: this.currentRunId,

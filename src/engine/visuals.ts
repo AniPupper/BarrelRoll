@@ -109,6 +109,7 @@ export class WaveVisual {
     for (let row = 0; row <= this.rows; row++) {
       const alongM = this.wave.map.wave.rideLengthM * row / this.rows;
       const barrel = this.wave.barrelAt(alongM, 0, 0, timeS);
+      const whitewater = this.wave.whitewaterAt(alongM);
       const impactX = this.wave.crossSectionAt(alongM, 1, timeS).x;
       for (let column = 0; column <= columns; column++) {
         const u = startU + (endU - startU) * column / columns;
@@ -132,9 +133,13 @@ export class WaveVisual {
         const impactColor = u < 0.78 ?
           Math.exp(-Math.pow((point.x - impactX) / 0.85, 2)) *
             Math.min(0.3, 0.10 + (barrel?.radiusM ?? 0) * 0.04) : 0;
+        const brokenWater = whitewater * (u < 0.78 ?
+          Math.pow(faceT, 0.9) * (0.38 + 0.18 *
+            Math.sin(alongM * 0.31 - timeS * 3.2 + faceT * 18)) :
+          0.52 + 0.32 * curl);
         tint.copy(this.base).multiplyScalar(insideShade * faceShade).lerp(this.foam,
           Math.min(0.97, lipFoam * 0.86 + closingFoam * 0.54 + crestFoam +
-            flowLine + impactColor + faceGlow));
+            flowLine + impactColor + faceGlow + brokenWater));
         colors.setXYZ(index, tint.r, tint.g, tint.b);
       }
     }
@@ -154,7 +159,8 @@ export class WaveVisual {
       const alongM = this.wave.map.wave.rideLengthM * row / this.rows;
       const tip = this.wave.crossSectionAt(alongM, 1, timeS);
       const radius = this.wave.barrelAt(alongM, 0, 0, timeS)?.radiusM ?? 0;
-      const width = 0.18 + Math.min(0.7, radius * 0.22);
+      const whitewater = this.wave.whitewaterAt(alongM);
+      const width = 0.18 + Math.min(0.7, radius * 0.22) + whitewater * 1.2;
       for (let column = 0; column <= 4; column++) {
         const across = column / 4;
         const x = tip.x + (across - 0.5) * width * 2;
@@ -171,13 +177,30 @@ export class WaveVisual {
     foamColors.needsUpdate = true;
     const sprayPositions = this.curlSpray.geometry.getAttribute('position');
     for (let i = 0; i < sprayPositions.count; i++) {
-      const alongM = this.wave.map.wave.rideLengthM * (i + 0.5) / sprayPositions.count;
+      const rideLength = this.wave.map.wave.rideLengthM;
+      const peel = this.wave.peelPositionM;
+      const alongM = peel === null ? rideLength * (i + 0.5) / sprayPositions.count :
+        Math.max(0, Math.min(rideLength,
+          peel - 42 + 62 * (i + 0.5) / sprayPositions.count));
       const barrel = this.wave.barrelAt(alongM, 0, 0, timeS);
-      if (!barrel || barrel.radiusM < 0.6) {
+      const whitewater = this.wave.whitewaterAt(alongM);
+      if (!barrel || (barrel.radiusM < 0.6 && whitewater < 0.2)) {
         sprayPositions.setXYZ(i, 0, -1000, 0);
         continue;
       }
       const phase = (timeS * (0.7 + (i % 5) * 0.06) + i * 0.43) % 1;
+      if (whitewater > 0.2 && i % 3 !== 0) {
+        const lipTip = this.wave.crossSectionAt(alongM, 1, timeS);
+        const x = lipTip.x + Math.sin(i * 8.3) * (0.4 + whitewater * 1.7);
+        const surface = this.wave.surfaceAt(alongM, x, timeS).position;
+        sprayPositions.setXYZ(i, x, surface.y + 0.2 + phase *
+          (0.5 + whitewater * 1.8), surface.z + Math.sin(i * 4.4) * 0.35);
+        continue;
+      }
+      if (barrel.radiusM < 0.6) {
+        sprayPositions.setXYZ(i, 0, -1000, 0);
+        continue;
+      }
       const u = i % 3 === 0 ? 0.83 + 0.10 * Math.abs(Math.sin(i * 6.7)) :
         0.94 + 0.06 * Math.abs(Math.sin(i * 6.7));
       const lip = this.wave.crossSectionAt(alongM, u, timeS);
