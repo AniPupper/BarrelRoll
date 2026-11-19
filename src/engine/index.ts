@@ -19,6 +19,7 @@ import type {
   TrickController,
   EnvironmentHandle,
 } from '../shared/contracts';
+import { CarveWake } from './wake';
 import { GameplayInput } from './input';
 import { validateMap } from './map';
 import { SurfSimulation } from './simulation';
@@ -66,6 +67,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   scene.add(waveVisual.mesh, waveVisual.lipMesh, waveVisual.lipFoam, waveVisual.impactFoam,
     waveVisual.curlSpray, surfer.group);
   surfer.addSprayTo(scene);
+  const wake = new CarveWake(scene);
   let environment: EnvironmentHandle;
   try {
     environment = options.createEnvironment(scene, options.map, options.settings);
@@ -107,6 +109,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
 
   const render = (frameDtS: number) => {
     waveVisual.update(simulation.simulationTimeS);
+    wake.update(simulation);
     surfer.update(simulation, settings);
     const alpha = Math.min(1, accumulatorS / (1 / 60));
     const prev = simulation.previousPosition;
@@ -119,6 +122,10 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     surfer.group.position.copy(rider);
     const q = simulation.orientation;
     surfer.group.quaternion.copy(new Quaternion(q.x, q.y, q.z, q.w));
+    if (simulation.state === 'surfing') {
+      surfer.group.rotateZ(simulation.railAngle);
+      surfer.group.rotateY(Math.sin(simulation.skid * Math.PI) * .32);
+    }
     const heading = new Vector3(simulation.heading.x, 0, simulation.heading.z).normalize();
     const airHeight = Math.max(0, rider.y - simulation.wave.surfaceAt(simulation.alongM,
       rider.x, simulation.simulationTimeS).position.y);
@@ -128,6 +135,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       simulation.simulationTimeS) : null;
     const barrelCameraX = barrel ? barrel.centerX - Math.min(3,
       Math.max(0, (options.map.wave.barrelSections[barrel.sectionIndex].radiusM - 1.2) * 1.5)) : 0;
+    const distance = barrel ? onWall ? 4.6 : 4.0 : 8 + Math.min(4, airHeight * 0.22);
     const distance = barrel ? onWall ? 7 : 5.3 : 8 + Math.min(4, airHeight * 0.22);
     const desired = barrel ?
       new Vector3(barrelCameraX, barrel.centerY - Math.min(0.5, barrel.radiusM * 0.2), rider.z)
@@ -141,6 +149,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     // Look ahead mainly along the wave. Leading the lateral heading by several
     // meters made a rightward carve appear to move left on screen.
     const target = barrel ?
+      new Vector3(barrelCameraX - .65, barrel.centerY + .35,
       new Vector3(barrelCameraX, barrel.centerY + 0.15,
         rider.z + simulation.wave.direction * 7) :
       rider.clone().addScaledVector(new Vector3(0, 0, simulation.wave.direction), 5);
@@ -280,6 +289,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       renderer.domElement.removeEventListener('pointerdown', focusCanvas);
       resizeObserver?.disconnect();
       if (!resizeObserver) window.removeEventListener('resize', size);
+      wake.dispose();
       environment.dispose();
       waveVisual.dispose();
       surfer.dispose();

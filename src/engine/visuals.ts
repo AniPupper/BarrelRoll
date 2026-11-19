@@ -34,6 +34,8 @@ export class WaveVisual {
   readonly lipFoam: Mesh<BufferGeometry, MeshBasicMaterial>;
   readonly impactFoam: Mesh<BufferGeometry, MeshBasicMaterial>;
   readonly curlSpray: Points;
+  private readonly rows = 112;
+  private readonly faceColumns = 28;
   private readonly rows = 176;
   private readonly faceColumns = 38;
   private readonly lipColumns = 22;
@@ -121,6 +123,7 @@ export class WaveVisual {
     }
     const nearStart = Math.max(0, peel - 36);
     const nearEnd = Math.min(length, peel + 28);
+    const nearRows = 68;
     const nearRows = 104;
     const farRows = this.rows - nearRows;
     const beforeLength = nearStart;
@@ -421,6 +424,8 @@ export class SurferVisual {
     const state: RiderState = sim.state;
     const crouch = state === 'barrel' ? 0.25 : state === 'airborne' ? -0.08 :
       state === 'wipeout' ? 0.6 : Math.max(0, (sim.speedMps - 14) * 0.012);
+    this.body.position.y = -crouch * 0.14 - sim.jumpLoad * .18 - sim.landingPulse * .19;
+    this.body.scale.y = 1 - .10 * sim.jumpLoad - .09 * sim.landingPulse - (state === 'barrel' ? .05 : 0);
     this.body.position.y = -crouch * 0.14;
     this.body.scale.y = state === 'barrel' ? 0.95 : 1;
     this.body.rotation.x = state === 'wipeout' ? 0.75 : state === 'airborne' ? -0.1 :
@@ -449,6 +454,7 @@ export class SurferVisual {
       } else {
         const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
         const rear = -sim.wave.direction * (0.2 + phase * (1.4 + sim.speedMps * 0.04));
+        positions.setXYZ(i, sim.position.x + spread * (1 + sim.skid * 2) - sim.lateralMps * phase * .2,
         positions.setXYZ(i, sim.position.x + spread,
           sim.position.y + 0.08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : 0.55),
           sim.position.z + rear);

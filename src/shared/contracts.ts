@@ -58,6 +58,8 @@ export interface RunResult extends RunMetrics {
   mode: Mode;
   score: number;
   durationS: number;
+  reason: 'timer' | 'player-ended' | 'ride-out' | 'missed-exit' | 'wipeout';
+  cleanExitS?: number;
   reason: 'timer' | 'player-ended';
 }
 
@@ -69,6 +71,8 @@ export interface HudSnapshot extends RunMetrics {
   multiplier: number;
   speedMps: number;
   barrelS: number;
+  cleanExitS: number;
+  distanceLeftM: number;
   remainingS: number | null;
   trickLabel: string;
 }
@@ -150,6 +154,7 @@ export interface ProgressSnapshot {
   earnedMedalIds: string[];
   unlockedBoardColors: string[];
   storageAvailable: boolean;
+  levelsCleared: number;
 }
 
 export interface ProgressStore {

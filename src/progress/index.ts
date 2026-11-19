@@ -1,3 +1,4 @@
+import { campaign, clearedLevel } from '../maps/campaign';
 import type {
   GameSettings,
   MapId,
@@ -30,6 +31,7 @@ export interface StorageAdapter {
 type BestRuns = Partial<Record<MapId, Partial<Record<Mode, RunResult>>>>;
 interface SaveData {
   version: 1;
+  levelsCleared: number;
   settings: GameSettings;
   bestRuns: BestRuns;
   earnedMedalIds: string[];
@@ -38,6 +40,7 @@ interface SaveData {
 
 const defaults = (): SaveData => ({
   version: 1,
+  levelsCleared: 0,
   settings: { ...DEFAULT_SETTINGS },
   bestRuns: {},
   earnedMedalIds: [],
@@ -73,6 +76,7 @@ function parseRun(value: unknown): RunResult | null {
   if (!isObject(value) || !isRunId(value.runId) || !isMapId(value.mapId) ||
       !isMode(value.mode) || !nonnegativeInteger(value.score) ||
       !nonnegative(value.durationS) ||
+      !['timer', 'player-ended', 'ride-out', 'missed-exit', 'wipeout'].includes(value.reason as string) ||
       !['timer', 'player-ended'].includes(value.reason as string) ||
       !nonnegative(value.longestBarrelS) ||
       !nonnegativeInteger(value.largestLandedSpinDeg) ||
@@ -84,6 +88,7 @@ function parseRun(value: unknown): RunResult | null {
     mapId: value.mapId,
     mode: value.mode,
     score: value.score,
+    ...(nonnegative(value.cleanExitS) ? { cleanExitS: value.cleanExitS } : {}),
     durationS: value.durationS,
     reason: value.reason as RunResult['reason'],
     longestBarrelS: value.longestBarrelS,
@@ -119,6 +124,7 @@ function parseSave(raw: string): SaveData | null {
     if (!unlocked.includes(settings.boardColor)) settings.boardColor = DEFAULT_SETTINGS.boardColor;
     return {
       version: 1,
+      levelsCleared: nonnegativeInteger(value.levelsCleared) ? Math.min(campaign.length, value.levelsCleared) : 0,
       settings,
       bestRuns,
       earnedMedalIds,
@@ -151,6 +157,7 @@ function copySnapshot(data: SaveData, storageAvailable: boolean): ProgressSnapsh
     earnedMedalIds: [...data.earnedMedalIds],
     unlockedBoardColors: unlockedColors(data.earnedMedalIds.length),
     storageAvailable,
+    levelsCleared: data.levelsCleared,
   };
 }
 
@@ -213,6 +220,7 @@ export function createProgressStore(options: { storage?: StorageAdapter | null }
       if (!best || result.score > best.score) {
         (data.bestRuns[result.mapId] ??= {})[result.mode] = result;
       }
+      if (campaign[data.levelsCleared] === result.mapId && clearedLevel(result)) data.levelsCleared++;
       data.recentRunIds.push(result.runId);
       data.recentRunIds = data.recentRunIds.slice(-HISTORY_LIMIT);
       persist();
