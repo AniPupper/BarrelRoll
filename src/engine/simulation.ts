@@ -133,9 +133,9 @@ export class SurfSimulation {
       this.turnExtremeFace = face;
       return;
     }
-    if (Math.abs(face - this.turnExtremeFace) < .085) return;
+    if (Math.abs(face - this.turnExtremeFace) < .068) return;
     const span = Math.abs(this.turnExtremeFace - this.turnStartFace);
-    if (span >= .28 && !this.skid) {
+    if (span >= .23 && !this.skid) {
       if (this.turnDirection < 0 && this.turnExtremeFace < .43) {
         this.driveS = 3;
         this.trickLabel = 'Driving bottom turn';
@@ -176,7 +176,7 @@ export class SurfSimulation {
   }
 
   get remainingS(): number | null {
-    return this.mode === 'score-run' && this.map.id !== 'nazare' ? Math.max(0, 120 - this.elapsedS) : null;
+    return this.mode === 'score-run' && this.map.id !== 'nazare' && this.map.id !== 'mavericks' ? Math.max(0, 120 - this.elapsedS) : null;
   }
 
   reset(): void {
@@ -417,13 +417,18 @@ export class SurfSimulation {
       }
     }
     this.updateWaveSpeed(dtS);
-    const carveSpeed = clamp(this.speedMps * .41, 5.8, 9.6);
+    const carveSpeed = clamp(this.speedMps * .47, 6.1, 11);
+    const line = this.wave.rideLineAt(this.alongM, this.position.x);
+    const assistance = line?.strength ?? 0;
     const railInput = -frame.steer * this.wave.direction;
     const grip = 1 - .52 * this.skid;
     const drift = this.skidSide * this.wave.direction * this.skid * 4.8;
-    const lateralTarget = railInput * carveSpeed * grip + drift;
+    // Feather the rail near the tube. Releasing it trims toward the pocket
+    // only if the rider has already chosen a nearby line. Steering wins immediately.
+    const trim = !railInput && line ? clamp((line.lineX - this.position.x) * 1.75, -2.6, 2.6) * assistance : 0;
+    const lateralTarget = railInput * carveSpeed * (1 - .48 * assistance) * grip + trim + drift;
     const crossingRails = railInput * this.lateralMps < -1;
-    const response = frame.steer === 0 ? 9 : crossingRails ? 5.8 : 8;
+    const response = frame.steer === 0 ? 15 : crossingRails ? 12 : 9.5;
 
     this.lateralMps += (lateralTarget - this.lateralMps) * (1 - Math.exp(-response * dtS));
     this.alongM += this.speedMps * dtS;
@@ -644,7 +649,13 @@ export class SurfSimulation {
         return;
       }
     }
-    if (this.alongM >= this.map.wave.rideLengthM) this.nextWave();
+    if (this.alongM >= this.map.wave.rideLengthM) {
+      if (this.map.id === 'mavericks' && this.mode === 'score-run') {
+        this.finish('ride-out');
+        return;
+      }
+      this.nextWave();
+    }
     this.wave.setPeelPosition(this.alongM);
     if (this.state === 'barrel') this.score.sustainBarrel(this.elapsedS);
     const banked = this.score.tick(this.elapsedS,
