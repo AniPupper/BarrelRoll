@@ -153,6 +153,7 @@ export class WaveModel {
       smoothstep((section.end01 - along) / exitFade);
     const rollingShape = 0.92 + 0.08 * Math.sin(alongM * 0.09 - timeS * 0.45 + this.phase);
     return 0.12 + section.radiusM * edge * this.peelingPeak(alongM, 1, 5) *
+    return 0.12 + section.radiusM * edge * this.peelingPeak(alongM, 0, 3) *
       this.openFraction(index, timeS) * rollingShape;
   }
 
@@ -181,6 +182,8 @@ export class WaveModel {
         w2 * (this.joinX - radius * 1.30) + w3 * tipX,
       y: w0 * joinY + w1 * (joinY + radius * 1.48) +
         w2 * (joinY + radius * 1.45) + w3 * tipY,
+      y: w0 * joinY + w1 * (joinY + radius * 1.18) +
+        w2 * (joinY + radius * 1.30) + w3 * tipY,
       z,
     };
   }

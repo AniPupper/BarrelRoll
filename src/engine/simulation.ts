@@ -135,6 +135,7 @@ export class SurfSimulation {
 
   get remainingS(): number | null {
     return this.mode === 'score-run' && this.map.id !== 'nazare' ? Math.max(0, 120 - this.elapsedS) : null;
+    return this.mode === 'score-run' ? Math.max(0, 120 - this.elapsedS) : null;
   }
 
   reset(): void {
@@ -246,6 +247,10 @@ export class SurfSimulation {
     const uphillCarve = Math.max(0, this.lateralMps) * 0.12;
     const targetSpeed = this.map.wave.peelSpeedMps * (1.08 + face * 0.16 + wavePulse) +
       this.dropMomentum + downhillCarve - uphillCarve;
+    const downhillCarve = Math.max(0, -this.lateralMps) * 0.28;
+    const uphillCarve = Math.max(0, this.lateralMps) * 0.12;
+    const targetSpeed = this.map.wave.peelSpeedMps * (1.08 + face * 0.16 + wavePulse) +
+      downhillCarve - uphillCarve;
     this.speedMps += (targetSpeed - this.speedMps) * (1 - Math.exp(-1.5 * dtS));
     this.speedMps = clamp(this.speedMps, this.map.wave.peelSpeedMps * 0.7,
       this.map.wave.peelSpeedMps * 1.5);
@@ -263,6 +268,7 @@ export class SurfSimulation {
         this.wave.along01(this.alongM) >= section.end01 - this.wave.exitTaper01(index) &&
         this.wave.openFraction(index, this.simulationTimeS) > 0.24) {
       this.creditBarrelExit();
+      this.score.addBarrel(this.barrelS, this.elapsedS);
       this.trickLabel = 'Barrel exit';
     } else this.trickLabel = 'Barrel lost';
     this.barrelS = 0;
@@ -371,6 +377,7 @@ export class SurfSimulation {
     const carveSpeed = clamp(this.speedMps * 0.38, 5.8, 8.8);
     const lateralTarget = -frame.steer * this.wave.direction * carveSpeed;
     const response = frame.steer === 0 ? 6 : 7;
+    const response = frame.steer === 0 ? 10 : 8;
     this.lateralMps += (lateralTarget - this.lateralMps) * (1 - Math.exp(-response * dtS));
     this.alongM += this.speedMps * dtS;
     const x = clamp(this.position.x + this.lateralMps * dtS, 0.2, this.wave.joinX - 0.08);
@@ -408,6 +415,7 @@ export class SurfSimulation {
       if (this.barrelS >= 0.3 && this.wave.along01(this.alongM) >= section.end01 - exitFade &&
           this.wave.openFraction(this.barrelSectionIndex, this.simulationTimeS) > 0.24) {
         this.creditBarrelExit();
+        this.score.addBarrel(this.barrelS, this.elapsedS);
         this.trickLabel = 'Barrel exit';
       } else if (this.barrelS >= 0.3) {
         this.trickLabel = 'Barrel lost';
@@ -508,6 +516,7 @@ export class SurfSimulation {
     this.metrics.largestLandedSpinDeg = Math.max(this.metrics.largestLandedSpinDeg,
       report.completedSpinDeg);
     this.trickLabel = report.label + (report.quality === 'clean' ? ' · Clean landing' : ' · Sketchy landing');
+    this.trickLabel = report.quality === 'clean' ? 'Clean landing' : 'Sketchy landing';
     const surface = this.wave.surfaceAt(this.alongM, this.position.x, this.simulationTimeS);
     this.orientation = waterOrientation(surface.normal, this.heading);
   }
@@ -539,6 +548,7 @@ export class SurfSimulation {
   step(frame: ControlFrame, dtS = FIXED_STEP_S): void {
     if (!this.started || this.ended) return;
     const actualDt = this.remainingS !== null ? Math.min(dtS, 120 - this.elapsedS) : dtS;
+    const actualDt = this.mode === 'score-run' ? Math.min(dtS, 120 - this.elapsedS) : dtS;
     if (actualDt <= 0) { this.finish('timer'); return; }
     this.wave.setPeelPosition(this.alongM);
     this.previousPosition = { ...this.position };

@@ -60,6 +60,7 @@ export interface RunResult extends RunMetrics {
   durationS: number;
   reason: 'timer' | 'player-ended' | 'ride-out' | 'missed-exit' | 'wipeout';
   cleanExitS?: number;
+  reason: 'timer' | 'player-ended';
 }
 
 export interface HudSnapshot extends RunMetrics {
