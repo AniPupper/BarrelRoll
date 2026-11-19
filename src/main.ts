@@ -1,6 +1,19 @@
 import { MAP_CARDS } from './app/mapCards';
 import { creditsContent, howToPlayContent } from './app/infoContent';
 import { locationArt } from './app/locationArt';
+<<<<<<< HEAD
+import heroPhotoUrl from './assets/mavericks-hero.webp?url';
+import { MAP_ORDER, STARTING_MAP_ID } from './maps';
+import { createProgressStore } from './progress';
+import { BOARD_COLOR_UNLOCKS } from './progress/challenges';
+import type { GameSettings, MapId, Quality } from './shared/contracts';
+import './style.css';
+
+const playableUrl = `${import.meta.env.BASE_URL}play.html`;
+
+const app = document.querySelector<HTMLDivElement>('#app');
+if (!app) throw new Error('BarrelRoll app mount is missing');
+=======
 import heroWaveUrl from './assets/hero-wave.svg?url';
 import { locationArt } from './app/locationArt';
 import { MAP_CARDS } from './app/mapCards';
@@ -12,6 +25,7 @@ import { campaign, clearedLevel, objectives } from './maps/campaign';
 import { createProgressStore } from './progress';
 import { createEnvironment } from './worlds/tour';
 import type { GameEvent, HudSnapshot, MapId, Mode, RunResult, SurfSession } from './shared/contracts';
+>>>>>>> 6d9e2030dc716d8734b4b8d1ca5085b74f55a3b1
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const progress = createProgressStore();
@@ -53,6 +67,185 @@ function title() {
     <p class="location">${cleared===5?'Uluwatu unlocked':cleared+' / 5 cleared · Freeplay unlocks after Nazaré'}</p>
     </div></main>`;
 }
+<<<<<<< HEAD
+
+function renderTitle(): void {
+  app!.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
+    <main class="landing" id="main-content">
+      <header class="landing__header shell">
+        ${brand()}
+        <nav class="landing__nav" aria-label="Game information">
+          <button type="button" data-screen="how">HOW TO PLAY</button>
+          <button type="button" data-screen="settings">SETTINGS</button>
+          <button type="button" data-screen="credits">CREDITS</button>
+        </nav>
+        <span class="header-edition">EST 2026 &nbsp;/&nbsp; SOLO SURF</span>
+      </header>
+      <div class="landing__body shell">
+        <section class="landing__copy">
+          <p class="kicker"><span class="kicker__line"></span> AN ARCADE SURF ADVENTURE</p>
+          <h1>BARREL<br><span>ROLL</span></h1>
+          <p class="landing__lead">Find your line on the world's most legendary waves</p>
+          <button type="button" class="action-button" id="play-button"><span>EXPLORE THE BREAKS</span><span class="action-button__icon" aria-hidden="true">↗</span></button>
+          <a class="landing__play-link" href="${playableUrl}">PLAY THE GAME <span aria-hidden="true">↗</span></a>
+        </section>
+        <div class="landing__visual">
+          <img src="${heroPhotoUrl}" alt="A towering wave at Mavericks under a foggy California sky" />
+          <div class="landing__visual-caption"><span>FIRST BREAK</span><strong>MAVERICKS</strong><span>HALF MOON BAY, CALIFORNIA</span></div>
+          <span class="landing__visual-index" aria-hidden="true">01</span>
+        </div>
+      </div>
+      <footer class="landing__footer shell">
+        <span class="footer-label">BARRELROLL <span aria-hidden="true">/</span> SOLO SURF</span>
+        <span class="footer-line" aria-hidden="true"></span>
+        <span class="footer-location">THE OCEAN IS YOUR PLAYGROUND</span>
+      </footer>
+    </main>`;
+  app!.querySelector<HTMLButtonElement>('#play-button')?.addEventListener('click', () => openScreen('maps'));
+  app!.querySelectorAll<HTMLButtonElement>('[data-screen]').forEach((button) => {
+    button.addEventListener('click', () => openScreen(button.dataset.screen as Screen));
+  });
+}
+
+function renderMaps(): void {
+  const card = MAP_CARDS[selectedMap];
+  const snapshot = progress.getSnapshot();
+  const best = snapshot.bestRuns[selectedMap]?.['score-run']?.score;
+  const goals = progress.challenges.filter((goal) => goal.mapId === selectedMap);
+  const earned = goals.filter((goal) => snapshot.earnedMedalIds.includes(goal.id)).length;
+  const isOpeningMap = selectedMap === STARTING_MAP_ID;
+
+  app!.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
+    <main class="atlas atlas--${card.tone}" id="main-content">
+      <header class="atlas__header shell">
+        ${brand()}
+        <span class="atlas__header-label">THE SURF ATLAS <span aria-hidden="true">/</span> EXPLORE THE COAST</span>
+        <button type="button" class="back-button" id="back-button"><span aria-hidden="true">←</span> BACK TO TITLE</button>
+      </header>
+      <div class="atlas__body shell">
+        <div class="atlas__intro">
+          <div><p class="kicker"><span class="kicker__line"></span> THE SURF ATLAS</p><h1>CHOOSE A <span>BREAK</span></h1></div>
+          <p>From the first wave at Mavericks to the final ride at Nazaré<br>Select a coast to preview its break</p>
+        </div>
+        <div class="atlas__stage">
+          <section class="feature" aria-live="polite" aria-label="Selected location">
+            <div class="feature__art" aria-hidden="true">${locationArt(selectedMap, 'feature')}<span class="feature__number">LOCATION ${indexOf(selectedMap)}</span></div>
+            <div class="feature__info">
+              <div class="feature__eyebrow"><span>${card.difficulty.toUpperCase()} BREAK</span><span>${isOpeningMap ? 'FIRST IN LINE' : 'ON THE HORIZON'}</span></div>
+              <h2>${card.name}</h2>
+              <p class="feature__region">${card.region}</p>
+              <p class="feature__signature">${card.signature}</p>
+              <div class="feature__metrics"><span><small>SCORE RUN BEST</small><strong>${best?.toLocaleString() ?? '—'}</strong></span><span><small>MEDALS EARNED</small><strong>${earned} <i>/ ${goals.length}</i></strong></span></div>
+              <a class="feature__play-link" href="${playableUrl}">OPEN THE PLAYABLE CAMPAIGN <span aria-hidden="true">↗</span></a>
+              <div class="feature__status"><span>${isOpeningMap ? 'FIRST BREAK' : 'EXPLORE THE COAST'}</span><span>PREVIEW</span></div>
+            </div>
+          </section>
+          <section class="breaks" aria-label="Surf locations">
+            <div class="breaks__heading"><span>DESTINATIONS</span><span>SELECT TO PREVIEW</span></div>
+            <ul class="break-list">${MAP_ORDER.map(mapButton).join('')}</ul>
+            <p class="breaks__foot">MORE THAN A POSTCARD <span aria-hidden="true">↗</span><br><small>Each break will have its own wave and riding style</small></p>
+          </section>
+        </div>
+      </div>
+    </main>`;
+  app!.querySelector<HTMLButtonElement>('#back-button')?.addEventListener('click', () => {
+    screen = 'title';
+    render();
+    app!.querySelector<HTMLButtonElement>('#play-button')?.focus();
+  });
+  app!.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedMap = button.dataset.map as MapId;
+      render();
+      app!.querySelector<HTMLButtonElement>(`[data-map="${selectedMap}"]`)?.focus();
+    });
+  });
+}
+
+function renderInfo(kicker: string, title: string, content: string): void {
+  app!.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
+    <main class="info-page" id="main-content">
+      <header class="atlas__header shell">
+        ${brand()}
+        <span class="atlas__header-label">THE SURF ATLAS <span aria-hidden="true">/</span> FIELD NOTES</span>
+        <button type="button" class="back-button" id="back-button"><span aria-hidden="true">←</span> BACK TO TITLE</button>
+      </header>
+      <div class="info-page__body shell">
+        <div class="info-page__hero"><p class="kicker"><span class="kicker__line"></span> ${kicker}</p><h1>${title}</h1></div>
+        ${content}
+      </div>
+    </main>`;
+  app!.querySelector<HTMLButtonElement>('#back-button')?.addEventListener('click', returnToTitle);
+}
+
+function renderSettings(): void {
+  const snapshot = progress.getSnapshot();
+  const settings = snapshot.settings;
+  const qualities: readonly Quality[] = ['low', 'medium', 'high'];
+  const qualityButtons = qualities.map((quality) => `<button type="button" class="choice-button${settings.quality === quality ? ' is-selected' : ''}" data-quality="${quality}" aria-pressed="${settings.quality === quality}">${quality.toUpperCase()}</button>`).join('');
+  const colorNames = ['Coral', 'Lagoon', 'Sun', 'Violet'];
+  const colors = BOARD_COLOR_UNLOCKS.map(({ color }, index) => {
+    const unlocked = snapshot.unlockedBoardColors.includes(color);
+    return `<button type="button" class="color-choice${settings.boardColor === color ? ' is-selected' : ''}" data-board="${color}" aria-pressed="${settings.boardColor === color}" ${unlocked ? '' : 'disabled'} aria-label="${colorNames[index] ?? 'Board color'}${unlocked ? '' : ', locked'}"><span class="color-choice__swatch" style="--swatch:${color}"></span><span>${colorNames[index] ?? 'Color'}</span><small>${unlocked ? 'UNLOCKED' : 'LOCKED'}</small></button>`;
+  }).join('');
+  const percent = Math.round(settings.masterVolume * 100);
+  const warning = snapshot.storageAvailable ? '' : '<p class="save-warning" role="status">Saving is unavailable in this browser — changes will last for this session</p>';
+  const resetConfirmation = resetPending ? `<div class="reset-confirm" role="group" aria-label="Confirm reset progress"><p>Delete saved records, medals and settings?</p><div><button type="button" id="cancel-reset">KEEP PROGRESS</button><button type="button" id="confirm-reset">RESET EVERYTHING</button></div></div>` : '';
+  const content = `<div class="settings-intro"><p>Make the ride feel right for you</p><span>CHANGES SAVE AUTOMATICALLY</span></div>
+    ${warning}<p class="settings-notice" role="status" aria-live="polite">${settingsNotice}</p>
+    <div class="settings-grid">
+      <fieldset class="setting-group"><legend>Picture</legend><p>Choose the level of detail that suits your device</p><div class="choice-row">${qualityButtons}</div></fieldset>
+      <fieldset class="setting-group"><legend>Motion</legend><p>Reduce decorative movement and camera effects</p><label class="toggle-row" for="reduced-motion"><span>REDUCED MOTION</span><input type="checkbox" id="reduced-motion" ${settings.reducedMotion ? 'checked' : ''}><span class="toggle-row__track" aria-hidden="true"></span></label></fieldset>
+      <fieldset class="setting-group"><legend>Sound</legend><p>Set the volume for future ocean and game audio</p><label class="volume-row" for="volume"><span>MASTER VOLUME</span><output id="volume-value" for="volume">${percent}%</output></label><input type="range" id="volume" min="0" max="100" step="1" value="${percent}"><label class="toggle-row" for="muted"><span>MUTE AUDIO</span><input type="checkbox" id="muted" ${settings.muted ? 'checked' : ''}><span class="toggle-row__track" aria-hidden="true"></span></label></fieldset>
+      <fieldset class="setting-group setting-group--colors"><legend>Ice board tint</legend><p>Earn medals to unlock more colors — the board always stays ice</p><div class="color-choices">${colors}</div></fieldset>
+    </div>
+    <div class="settings-danger"><div><strong>Start fresh</strong><p>Remove local records, medals, unlocks and settings</p></div><button type="button" id="reset-button">RESET PROGRESS</button></div>${resetConfirmation}`;
+  renderInfo('MAKE IT YOURS', 'SETTINGS', content);
+
+  app!.querySelectorAll<HTMLButtonElement>('[data-quality]').forEach((button) => {
+    button.addEventListener('click', () => saveSettings({ quality: button.dataset.quality as Quality }, `[data-quality="${button.dataset.quality}"]`));
+  });
+  app!.querySelector<HTMLInputElement>('#reduced-motion')?.addEventListener('change', (event) => {
+    saveSettings({ reducedMotion: (event.currentTarget as HTMLInputElement).checked }, '#reduced-motion');
+  });
+  app!.querySelector<HTMLInputElement>('#muted')?.addEventListener('change', (event) => {
+    saveSettings({ muted: (event.currentTarget as HTMLInputElement).checked }, '#muted');
+  });
+  const volume = app!.querySelector<HTMLInputElement>('#volume');
+  volume?.addEventListener('input', () => {
+    const output = app!.querySelector<HTMLOutputElement>('#volume-value');
+    if (output) output.value = `${volume.value}%`;
+  });
+  volume?.addEventListener('change', () => saveSettings({ masterVolume: Number(volume.value) / 100 }, '#volume'));
+  app!.querySelectorAll<HTMLButtonElement>('[data-board]').forEach((button) => {
+    button.addEventListener('click', () => saveSettings({ boardColor: button.dataset.board }, `[data-board="${button.dataset.board}"]`));
+  });
+  app!.querySelector<HTMLButtonElement>('#reset-button')?.addEventListener('click', () => {
+    resetPending = true;
+    renderSettings();
+    app!.querySelector<HTMLButtonElement>('#cancel-reset')?.focus();
+  });
+  app!.querySelector<HTMLButtonElement>('#cancel-reset')?.addEventListener('click', () => {
+    resetPending = false;
+    renderSettings();
+    app!.querySelector<HTMLButtonElement>('#reset-button')?.focus();
+  });
+  app!.querySelector<HTMLButtonElement>('#confirm-reset')?.addEventListener('click', () => {
+    const next = progress.reset();
+    settingsNotice = next.storageAvailable ? 'Progress reset' : 'Progress reset for this session';
+    resetPending = false;
+    renderSettings();
+    app!.querySelector<HTMLButtonElement>('#reset-button')?.focus();
+  });
+}
+
+function saveSettings(patch: Partial<GameSettings>, focusSelector: string): void {
+  try {
+    const next = progress.updateSettings(patch);
+    settingsNotice = next.storageAvailable ? 'Settings saved' : 'Settings active for this session';
+  } catch {
+    settingsNotice = 'That setting could not be saved';
+=======
 function atlas(free=false) {
   screen='atlas'; stopRide();
   const {levelsCleared,bestRuns,earnedMedalIds}=snap();
@@ -82,6 +275,7 @@ function hint(h:HudSnapshot | RunResult) {
     case 'teahupoo':return `Clean exit  ${exit} / 3.5 s · Score  ${number(h.score)} / 4,000`;
     case 'nazare':return 'distanceLeftM' in h?`Ride between the buoys · ${number(h.distanceLeftM)} m`:objectives.nazare;
     default:return '';
+>>>>>>> 6d9e2030dc716d8734b4b8d1ca5085b74f55a3b1
   }
 }
 function showRide(id:MapId, free:boolean) {
