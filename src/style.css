@@ -1,118 +1,15 @@
 :root {
-  font-family: 'Avenir Next', Avenir, Helvetica, Arial, sans-serif;
-  color: #f8fbff;
-  background: #071d2c;
+  font-family: 'Avenir Next', Avenir, 'Segoe UI', Helvetica, Arial, sans-serif;
+  color: #f6f1df;
+  background: #081b24;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; }
-
-body { margin: 0; min-width: 320px; }
-
-.landing {
-  position: relative;
-  display: grid;
-  min-height: 100svh;
-  overflow: hidden;
-  place-items: center;
-  isolation: isolate;
-  background: #173b4c;
-}
-
-.landing__art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-
-.landing__veil {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, #071d2cef 0, #0a263ace 31%, #0a263a54 64%, transparent 100%),
-    linear-gradient(0deg, #071d2c8f, transparent 34%);
-}
-
-.site-header, .map-select__masthead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  color: #f7fffa;
-  font-size: .75rem;
-  font-weight: 800;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-}
-
-.site-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 2;
-  padding: 2rem clamp(1.5rem, 4.5vw, 5rem);
-}
-
-.site-header__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border: 2px solid #fff9dd;
-  border-radius: 50%;
-  font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: -.08em;
-}
-
-.site-header__mark span { margin: -.8rem -.35rem 0 0; color: #ffc59a; font-size: .8rem; }
-.site-header__edition { color: #e3e8df; }
-
-.content {
-  position: relative;
-  width: min(90vw, 1320px);
-  padding: 7.5rem 0 5rem;
-  z-index: 2;
-}
-
-.eyebrow {
-  margin: 0 0 1rem;
-  color: #c2fff0;
-  font-size: clamp(.75rem, 1.4vw, 1rem);
-  font-weight: 700;
-  letter-spacing: .22em;
-  text-transform: uppercase;
-}
-
-.eyebrow__dash { display: inline-block; width: 2.5rem; height: 2px; margin: 0 .5rem .25rem 0; background: #ffbd8b; }
-
-h1 {
-  margin: 0;
-  font-family: Impact, 'Arial Narrow', sans-serif;
-  font-size: clamp(5.6rem, 12vw, 11rem);
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -.025em;
-  line-height: .81;
-  text-shadow: 0 12px 38px #03131d99;
-  text-transform: uppercase;
-}
-
-h1 span { color: #ffbf8c; }
-
-.tagline {
-  max-width: 29rem;
-  margin: 2rem 0 0;
-  font-size: clamp(1rem, 1.8vw, 1.35rem);
-  line-height: 1.5;
-}
-
+html { scroll-behavior: smooth; }
+body { min-width: 320px; margin: 0; }
 button { font: inherit; cursor: pointer; }
 
 button:focus-visible {

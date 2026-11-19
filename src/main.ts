@@ -1,4 +1,6 @@
-import './style.css';
+import { MAP_CARDS } from './app/mapCards';
+import { creditsContent, howToPlayContent } from './app/infoContent';
+import { locationArt } from './app/locationArt';
 import heroWaveUrl from './assets/hero-wave.svg?url';
 import { locationArt } from './app/locationArt';
 import { MAP_CARDS } from './app/mapCards';
