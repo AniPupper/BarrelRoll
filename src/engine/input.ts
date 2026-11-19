@@ -23,7 +23,7 @@ export class GameplayInput {
 
   press(key: string, onWave: boolean): boolean {
     const name = normalize(key);
-    if (!['w', 'a', 's', 'd', 'space', 'r'].includes(name)) return false;
+    if (!['w', 'a', 's', 'd', 'space', 'shift', 'r'].includes(name)) return false;
     if (this.held.has(name)) return true;
     this.held.add(name);
     if (name === 'space' && onWave) this.chargingS = 0;
@@ -32,7 +32,7 @@ export class GameplayInput {
 
   release(key: string): boolean {
     const name = normalize(key);
-    if (!['w', 'a', 's', 'd', 'space', 'r'].includes(name)) return false;
+    if (!['w', 'a', 's', 'd', 'space', 'shift', 'r'].includes(name)) return false;
     this.held.delete(name);
     this.blockedFlip.delete(name);
     if (name === 'space' && this.chargingS !== null) {
@@ -62,7 +62,7 @@ export class GameplayInput {
     this.releasedChargeS = null;
     return {
       steer: axis(this.held.has('a'), this.held.has('d')),
-      wallRide: axis(this.held.has('a'), this.held.has('d')),
+      wallRide: this.held.has('shift') ? axis(this.held.has('a'), this.held.has('d')) : 0,
       jumpChargeS,
       charge01: (this.chargingS ?? 0) / .6,
       trick: {

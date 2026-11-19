@@ -21,6 +21,7 @@ import type {
   EnvironmentHandle,
 } from '../shared/contracts';
 import { CarveWake } from './wake';
+import { ChaseCamera } from './chaseCamera';
 import { GameplayInput } from './input';
 import { validateMap } from './map';
 import { SurfSimulation } from './simulation';
@@ -94,9 +95,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   let rafId: number | null = null;
   let lastFrameMs: number | null = null;
   let accumulatorS = 0;
-  let cameraReady = false;
-  let focusReady = false;
-  const cameraFocus = new Vector3();
+  const chase = new ChaseCamera();
   const previousRotation = new Quaternion();
   const currentRotation = new Quaternion();
   const contactRotation = new Quaternion();
@@ -128,7 +127,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       geometryTime = simulation.simulationTimeS;
     }
     if (simulation.alongM < lastAlong - 1) {
-      cameraReady = focusReady = false;
+      chase.reset();
       previousRotation.copy(simulation.orientation);
     }
     lastAlong = simulation.alongM;
@@ -161,43 +160,13 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       shadow.scale.setScalar(1 + Math.min(airHeight,8) * .07);
       shadow.material.uniforms.strength.value = .46 / (1 + airHeight * .14);
     }
-    const inBarrel = simulation.state === 'barrel';
-    const direction = simulation.wave.direction;
-    const cameraAlong = Math.max(0, rider.z * direction - 3.8);
-    const pocket = inBarrel ? simulation.wave.tubeCameraAt(cameraAlong, simulation.simulationTimeS) : null;
-    const distance = 8 + Math.min(4, airHeight * .22);
-    const desired = pocket ? new Vector3().copy(pocket) : rider.clone().addScaledVector(heading, -distance);
-    if (!pocket) desired.y += 3.2 + Math.min(2, airHeight * .13);
-    if (!cameraReady) {
-      camera.position.copy(desired);
-      cameraReady = true;
-    } else camera.position.lerp(desired, 1 - Math.exp(-6 * Math.max(0, frameDtS)));
-    if (pocket) {
-      // Damping can leave the lens in the water when the curtain first folds.
-      const localPocket = simulation.wave.tubeCameraAt(camera.position.z * direction, simulation.simulationTimeS);
-      if (localPocket) {
-        camera.position.x = Math.max(localPocket.x - .28, Math.min(localPocket.x + .28, camera.position.x));
-        camera.position.y = Math.max(localPocket.y - .28, Math.min(localPocket.y + .28, camera.position.y));
-      }
-    }
-    // Look ahead mainly along the wave. Leading the lateral heading by several
-    // meters made a rightward carve appear to move left on screen.
-    const target = pocket ?
-      new Vector3(pocket.x - .8, pocket.y + .16, rider.z + direction * 7) :
-      rider.clone().addScaledVector(new Vector3(0, 0, simulation.wave.direction), 5);
-    if (!pocket) {
-      target.x += heading.x * 0.45;
-      target.y += 1.4;
-    }
-    if (!focusReady) {
-      cameraFocus.copy(target);
-      focusReady = true;
-    } else cameraFocus.lerp(target, 1 - Math.exp(-8 * Math.max(0, frameDtS)));
-    camera.up.set(0, 1, 0);
-    camera.lookAt(cameraFocus);
+    const tubeBlend = chase.update(simulation.wave, rider, heading, airHeight,
+      simulation.state === 'surfing' || simulation.state === 'barrel', simulation.simulationTimeS, frameDtS);
+    camera.position.copy(chase.eye);
+    camera.lookAt(chase.focus);
     const fov = settings.reducedMotion ? 65 :
       63 + Math.min(9, simulation.speedMps * 0.25) + Math.min(5, airHeight * 0.3) +
-      (inBarrel ? 3 : 0);
+      tubeBlend * 3;
     if (Math.abs(camera.fov - fov) > 0.05) {
       camera.fov = fov;
       camera.updateProjectionMatrix();
@@ -258,8 +227,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     accumulatorS = 0;
     lastFrameMs = null;
     paused = false;
-    cameraReady = false;
-    focusReady = false;
+    chase.reset();
     renderer.domElement.focus();
     schedule();
   };

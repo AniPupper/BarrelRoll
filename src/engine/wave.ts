@@ -59,11 +59,30 @@ export class WaveModel {
     if (this.peelAlongM === null) return 0;
     // Start the next breaking section in front of the approaching surfer.
     // The entry is visible from the open face before the board reaches it.
-    const section = this.map.wave.barrelSections[this.sectionAt(alongM)];
-    const firstPitch = section ? section.start01 * this.map.wave.rideLengthM + 9 : 0;
-    const approach = firstPitch - this.peelAlongM;
-    const lead = section && approach > 0 ? approach * (1 - smoothstep((approach - 35) / 40)) : 0;
+    // Ease the peel ahead of the rider over the whole approach. Using the
+    // section boundary here made adjacent rows of water jump to different heights.
+    const length = this.map.wave.rideLengthM;
+    const section = this.map.wave.barrelSections.find(s => alongM <= s.end01 * length + 8);
+    const firstPitch = section ? section.start01 * length + 9 : 0;
+    const distance = firstPitch - this.peelAlongM;
+    const lead = distance > 0 ? distance * (1 - smoothstep((distance - 30) / 52)) : 0;
     return alongM - this.peelAlongM - lead;
+  }
+
+  rideLineAt(alongM: number, x: number) {
+    const length = this.map.wave.rideLengthM;
+    const lead = this.map.wave.peelSpeedMps * 2.8;
+    const section = this.map.wave.barrelSections.find(s =>
+      alongM >= s.start01 * length - lead && alongM < s.end01 * length);
+    if (!section) return null;
+    const lineX = this.joinX - section.radiusM;
+    const distance = alongM - section.start01 * length;
+    const entry = smoothstep((distance + lead) / lead);
+    const exit = smoothstep((section.end01 * length - alongM) /
+      Math.min(14, (section.end01 - section.start01) * length * .22));
+    const catchWidth = Math.max(section.radiusM * 1.55, this.map.wave.faceWidthM * .24);
+    const proximity = 1 - smoothstep((Math.abs(lineX - x) - catchWidth * .40) / catchWidth);
+    return { lineX, radius:section.radiusM, strength:entry * exit * proximity };
   }
 
   private peelingPeak(alongM: number, aheadStartM: number, aheadFadeM: number): number {
@@ -198,8 +217,15 @@ export class WaveModel {
     const tipY = this.faceHeight(tipX, alongM, timeS) + Math.min(.42, radius * .2);
     // Ahead of the surfer only the first part of the arc has folded. The
     // free edge traces the arch as it pitches, leaving the daylight open.
+    const section = this.map.wave.barrelSections[this.sectionAt(alongM)];
+    const entryLength = section ? Math.min(this.map.wave.peelSpeedMps * 1.55,
+      (section.end01 - section.start01) * this.map.wave.rideLengthM * .23) : 0;
+    // Let the entering rider pass under an extended lip before its free
+    // edge falls. A fully folded but tiny tube grew sideways through the lens.
+    const entryOpen = section ? 1 - smoothstep((alongM - section.start01 *
+      this.map.wave.rideLengthM) / entryLength) : 0;
     const unfurl = this.peelAlongM === null ? 0 :
-      smoothstep((this.distanceFromPeak(alongM) + .55) / 4);
+      Math.max(entryOpen, smoothstep((this.distanceFromPeak(alongM) + .55) / 4));
     const angle = Math.PI * curl * (1 - .89 * unfurl);
     const sine = Math.sin(angle), cosine = Math.cos(angle);
     const fall = .5 - .5 * cosine;
