@@ -1,6 +1,6 @@
 # BarrelRoll
 
-An arcade surfing game being built by Anika and Teddy. The foundation currently renders a title screen and a location selector. Mavericks is the first highlighted location; gameplay integration is in progress.
+An arcade surfing game being built by Anika and Teddy. The five-level campaign opens at Mavericks and finishes with a giant wave at Nazaré. Complete the campaign to unlock untimed Freeplay and the bonus Uluwatu break.
 
 ## Local development
 
@@ -22,3 +22,5 @@ npm run preview
 
 The production build uses `/BarrelRoll/` as its base path for GitHub Pages.
 
+
+After a production build, open `dist/BarrelRoll.html` directly in a WebGL 2 desktop browser to play offline. A/D carve and spin. Hold and release Space to jump. Press W/S after takeoff to flip. Escape pauses and R retries.

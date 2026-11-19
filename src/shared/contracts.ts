@@ -58,7 +58,8 @@ export interface RunResult extends RunMetrics {
   mode: Mode;
   score: number;
   durationS: number;
-  reason: 'timer' | 'player-ended';
+  reason: 'timer' | 'player-ended' | 'ride-out' | 'missed-exit' | 'wipeout';
+  cleanExitS?: number;
 }
 
 export interface HudSnapshot extends RunMetrics {
@@ -69,6 +70,8 @@ export interface HudSnapshot extends RunMetrics {
   multiplier: number;
   speedMps: number;
   barrelS: number;
+  cleanExitS: number;
+  distanceLeftM: number;
   remainingS: number | null;
   trickLabel: string;
 }
@@ -105,6 +108,7 @@ export type TrickFamily = 'straight-air' | 'spin' | 'flip' | 'cork';
 export type LandingQuality = 'clean' | 'sketchy' | 'wipeout';
 
 export interface TrickInput {
+  tucked?: boolean;
   spinAxis: -1 | 0 | 1;
   flipAxis: -1 | 0 | 1;
 }
@@ -122,10 +126,11 @@ export interface LandingReport {
   completedSpinDeg: number;
   completedFlips: number;
   speedMultiplier: number;
+  slipSide?: number;
 }
 
 export interface TrickController {
-  beginAir(start: { airId: string; orientation: Quat }): void;
+  beginAir(start: { airId: string; orientation: Quat; loadedRail?: number }): void;
   step(input: TrickInput, dtS: number): TrickFrame;
   land(contact: {
     surfaceNormal: Vec3;
@@ -150,6 +155,7 @@ export interface ProgressSnapshot {
   earnedMedalIds: string[];
   unlockedBoardColors: string[];
   storageAvailable: boolean;
+  levelsCleared: number;
 }
 
 export interface ProgressStore {

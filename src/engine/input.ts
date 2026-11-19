@@ -4,6 +4,7 @@ export interface ControlFrame {
   steer: -1 | 0 | 1;
   wallRide: -1 | 0 | 1;
   jumpChargeS: number | null;
+  charge01?: number;
   trick: TrickInput;
 }
 
@@ -63,7 +64,9 @@ export class GameplayInput {
       steer: axis(this.held.has('a'), this.held.has('d')),
       wallRide: axis(this.held.has('a'), this.held.has('d')),
       jumpChargeS,
+      charge01: (this.chargingS ?? 0) / .6,
       trick: {
+        tucked: this.chargingS === null && this.held.has('space'),
         spinAxis: axis(this.held.has('a'), this.held.has('d')),
         flipAxis: axis(this.held.has('s') && !this.blockedFlip.has('s'),
           this.held.has('w') && !this.blockedFlip.has('w')),
