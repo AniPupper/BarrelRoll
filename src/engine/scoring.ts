@@ -1,6 +1,6 @@
 import type { LandingReport, RunMetrics, TrickFamily } from '../shared/contracts';
 
-type ComboFamily = TrickFamily | 'barrel';
+type ComboFamily = TrickFamily | 'barrel' | 'cutback';
 const REPETITION = [1, 0.7, 0.4];
 
 export class RuntimeScore {
@@ -43,6 +43,14 @@ export class RuntimeScore {
 
   addBarrel(durationS: number, nowS: number): void {
     if (durationS >= 0.3) this.action('barrel', 150 * durationS + 300, nowS);
+  }
+
+  addCutback(faceDistance: number, nowS: number): void {
+    this.action('cutback', Math.round(180 + 240 * Math.min(1, faceDistance)), nowS);
+  }
+
+  sustainBarrel(nowS: number): void {
+    if (this.pendingCombo > 0) this.lastActionS = nowS;
   }
 
   tick(nowS: number, safe: boolean): number {

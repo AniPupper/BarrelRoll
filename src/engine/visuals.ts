@@ -11,8 +11,7 @@ import {
   LineLoop,
   LineSegments,
   Mesh,
-  MeshBasicMaterial,
-  MeshPhongMaterial,
+  type ShaderMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Points,
@@ -21,22 +20,25 @@ import {
   type Scene,
   SphereGeometry,
   type Material,
-  Vector2,
 } from 'three';
 import type { GameSettings, RiderState } from '../shared/contracts';
 import type { SurfSimulation } from './simulation';
 import type { WaveModel } from './wave';
 import { createSprayTexture, createWaterNormalMap } from './waterTexture';
 
+import { breakingFoam, breakingWater } from './breakingWater';
+
 export class WaveVisual {
-  readonly mesh: Mesh<BufferGeometry, MeshPhongMaterial>;
-  readonly lipMesh: Mesh<BufferGeometry, MeshPhysicalMaterial>;
-  readonly lipFoam: Mesh<BufferGeometry, MeshBasicMaterial>;
-  readonly impactFoam: Mesh<BufferGeometry, MeshBasicMaterial>;
+  readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
+  readonly backMesh: Mesh<BufferGeometry, ShaderMaterial>;
+  readonly lipMesh: Mesh<BufferGeometry, ShaderMaterial>;
+  readonly lipFoam: Mesh<BufferGeometry, ShaderMaterial>;
+  readonly impactFoam: Mesh<BufferGeometry, ShaderMaterial>;
   readonly curlSpray: Points;
-  private readonly rows = 176;
-  private readonly faceColumns = 38;
-  private readonly lipColumns = 22;
+  private readonly rows = 140;
+  private readonly faceColumns = 28;
+  private readonly lipColumns = 28;
+  private readonly backColumns = 30;
   private readonly base: Color;
   private readonly foam: Color;
   private readonly wave: WaveModel;
@@ -48,31 +50,18 @@ export class WaveVisual {
     this.base = new Color(waterColor);
     this.foam = new Color(foamColor);
     this.waterNormal = createWaterNormalMap();
-    this.waterNormal.repeat.set(4, 18);
-    const faceGeometry = this.makeSheet(this.faceColumns, 0, 0.78);
-    const faceMaterial = new MeshPhongMaterial({ vertexColors: true, side: DoubleSide,
-      shininess: 95, specular: new Color('#9ddde3'),
-      normalMap: this.waterNormal, normalScale: new Vector2(0.45, 0.45) });
-    this.mesh = new Mesh(faceGeometry, faceMaterial);
-    this.mesh.frustumCulled = false;
-    const lipGeometry = this.makeSheet(this.lipColumns, 0.78, 1);
-    const lipMaterial = new MeshPhysicalMaterial({ vertexColors: true, side: DoubleSide,
-      roughness: 0.17, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.12,
-      normalMap: this.waterNormal, normalScale: new Vector2(0.25, 0.25),
-      transparent: true, opacity: 0.52, depthWrite: false, forceSinglePass: true });
-    this.lipMesh = new Mesh(lipGeometry, lipMaterial);
-    this.lipMesh.frustumCulled = false;
-    this.lipFoam = new Mesh(this.makeSheet(4, 0.965, 1), new MeshBasicMaterial({
-      color: foamColor, transparent: true, opacity: 0.38,
-      depthWrite: false, side: DoubleSide,
-    }));
-    this.lipFoam.frustumCulled = false;
+    const sky = wave.map.visual.skyColor;
+    const faceMaterial = breakingWater(this.base, sky, this.waterNormal);
+    this.mesh = new Mesh(this.makeSheet(this.faceColumns, 0, .78), faceMaterial);
+    this.backMesh = new Mesh(this.makeSheet(this.backColumns), faceMaterial);
+    this.lipMesh = new Mesh(this.makeSheet(this.lipColumns, .78, 1),
+      breakingWater(this.base, sky, this.waterNormal, true));
+    this.lipFoam = new Mesh(this.makeSheet(4, .965, 1), breakingFoam(true));
+    this.impactFoam = new Mesh(this.makeSheet(4), breakingFoam(false));
+    for (const sheet of [this.mesh, this.backMesh, this.lipMesh, this.lipFoam, this.impactFoam]) {
+      sheet.frustumCulled = false;
+    }
     this.lipFoam.renderOrder = 1;
-    this.impactFoam = new Mesh(this.makeSheet(4), new MeshBasicMaterial({
-      vertexColors: true, transparent: true, opacity: 0.58,
-      depthWrite: false, side: DoubleSide,
-    }));
-    this.impactFoam.frustumCulled = false;
     const sprayGeometry = new BufferGeometry();
     sprayGeometry.setAttribute('position',
       new Float32BufferAttribute(new Float32Array(480 * 3), 3));
@@ -121,7 +110,11 @@ export class WaveVisual {
     }
     const nearStart = Math.max(0, peel - 36);
     const nearEnd = Math.min(length, peel + 28);
-    const nearRows = 104;
+    // Give the folding edge sub-meter detail even on a long wave. Without
+    // these samples the curve around the daylight opening has visible corners.
+    const pocketStart = Math.max(nearStart, peel - 7);
+    const pocketEnd = Math.min(nearEnd, peel + 7);
+    const nearRows = 96;
     const farRows = this.rows - nearRows;
     const beforeLength = nearStart;
     const afterLength = length - nearEnd;
@@ -133,8 +126,10 @@ export class WaveVisual {
       if (row <= beforeRows) {
         samples[row] = beforeRows === 0 ? 0 : nearStart * row / beforeRows;
       } else if (row <= beforeRows + nearRows) {
-        samples[row] = nearStart + (nearEnd - nearStart) *
-          (row - beforeRows) / nearRows;
+        const near = row - beforeRows;
+        if (near <= 28) samples[row] = nearStart + (pocketStart - nearStart) * near / 28;
+        else if (near <= 78) samples[row] = pocketStart + (pocketEnd - pocketStart) * (near - 28) / 50;
+        else samples[row] = pocketEnd + (nearEnd - pocketEnd) * (near - 78) / 18;
       } else {
         samples[row] = nearEnd + (length - nearEnd) *
           (row - beforeRows - nearRows) / Math.max(1, afterRows);
@@ -194,34 +189,56 @@ export class WaveVisual {
   }
 
   update(timeS: number): void {
-    this.waterNormal.offset.set(timeS * 0.005, -timeS * 0.012);
+    for (const sheet of [this.mesh, this.lipMesh, this.lipFoam, this.impactFoam]) {
+      sheet.material.uniforms.clock.value = timeS;
+    }
     const alongSamples = this.alongSamples();
     this.updateSheet(this.mesh.geometry, this.faceColumns, 0, 0.78, timeS, alongSamples);
     this.updateSheet(this.lipMesh.geometry, this.lipColumns, 0.78, 1, timeS, alongSamples);
-    this.updateSheet(this.lipFoam.geometry, 4, 0.965, 1, timeS, alongSamples);
+    const edgePositions = this.lipFoam.geometry.getAttribute('position');
+    const edgeColors = this.lipFoam.geometry.getAttribute('color');
+    const impactColors = this.impactFoam.geometry.getAttribute('color');
     const foamPositions = this.impactFoam.geometry.getAttribute('position');
-    const foamColors = this.impactFoam.geometry.getAttribute('color');
-    const foamTint = new Color();
+    const back = this.backMesh.geometry;
+    const backPositions = back.getAttribute('position');
+    const backColors = back.getAttribute('color');
+    const tint = new Color();
     for (let row = 0; row <= this.rows; row++) {
       const alongM = alongSamples[row];
       const tip = this.wave.crossSectionAt(alongM, 1, timeS);
       const radius = this.wave.barrelAt(alongM, 0, 0, timeS)?.radiusM ?? 0;
       const whitewater = this.wave.whitewaterAt(alongM);
+      for (let column = 0; column <= this.backColumns; column++) {
+        const across = column / this.backColumns;
+        const point = this.wave.backAt(alongM, across, timeS);
+        const index = row * (this.backColumns + 1) + column;
+        backPositions.setXYZ(index, point.x, point.y, point.z);
+        const edge = Math.max(0, (across - .85) / .15);
+        tint.copy(this.base).lerp(this.foam, edge * (.32 + whitewater * .45));
+        backColors.setXYZ(index, tint.r, tint.g, tint.b);
+      }
+      const tipFloor = this.wave.crossSectionAt(alongM, .78 * tip.x / this.wave.joinX, timeS);
+      const feather = Math.min(1, radius * .65 + whitewater);
+      const contact = feather * Math.max(0, 1 - Math.max(0, tip.y - tipFloor.y - .45) / .9);
       const width = 0.18 + Math.min(0.7, radius * 0.22) + whitewater * 1.2;
       for (let column = 0; column <= 4; column++) {
         const across = column / 4;
-        const x = tip.x + (across - 0.5) * width * 2;
-        const point = this.wave.surfaceAt(alongM, x, timeS).position;
+        const edge = this.wave.crossSectionAt(alongM, .965 + .035 * across, timeS);
         const index = row * 5 + column;
-        foamPositions.setXYZ(index, x, point.y + 0.04, point.z);
-        const strength = Math.pow(Math.sin(Math.PI * across), 2) *
-          (0.72 + 0.28 * Math.sin(alongM * 0.17 - timeS * 1.7));
-        foamTint.copy(this.base).lerp(this.foam, 0.16 + strength * 0.84);
-        foamColors.setXYZ(index, foamTint.r, foamTint.g, foamTint.b);
+        edgePositions.setXYZ(index, edge.x, edge.y, edge.z);
+        edgeColors.setX(index, feather);
+        impactColors.setX(index, contact);
+        const boil = .65 + .35 * Math.sin(alongM * 1.1 + timeS * 2.8 + across * 9);
+        const x = tip.x + (across - .5) * width * (1.6 + .65 * boil);
+        const face = this.wave.crossSectionAt(alongM, .78 * x / this.wave.joinX, timeS);
+        const mound = Math.sin(Math.PI * across) * boil * Math.min(.72, radius * .10 + whitewater * .65);
+        foamPositions.setXYZ(row * 5 + column, x, face.y + .045 + mound, face.z);
       }
     }
-    foamPositions.needsUpdate = true;
-    foamColors.needsUpdate = true;
+    backPositions.needsUpdate = backColors.needsUpdate = true;
+    back.computeVertexNormals();
+    edgePositions.needsUpdate = edgeColors.needsUpdate = true;
+    foamPositions.needsUpdate = impactColors.needsUpdate = true;
     const sprayPositions = this.curlSpray.geometry.getAttribute('position');
     for (let i = 0; i < sprayPositions.count; i++) {
       const rideLength = this.wave.map.wave.rideLengthM;
@@ -251,14 +268,16 @@ export class WaveVisual {
       const u = i % 3 === 0 ? 0.83 + 0.10 * Math.abs(Math.sin(i * 6.7)) :
         0.94 + 0.06 * Math.abs(Math.sin(i * 6.7));
       const lip = this.wave.crossSectionAt(alongM, u, timeS);
-      sprayPositions.setXYZ(i, lip.x + Math.sin(i * 13.2) * 0.28,
-        lip.y + phase * (0.5 + (i % 4) * 0.22),
-        lip.z + Math.sin(i * 4.4) * 0.24);
+      const crestPlume = i % 3 === 0;
+      const loft = crestPlume ? phase * (2.3 - 1.55 * phase) : phase * (.4 - 1.8 * phase);
+      sprayPositions.setXYZ(i, lip.x + (crestPlume ? .95 : -.3) * phase + Math.sin(i * 13.2) * .2,
+        lip.y + loft, lip.z + this.wave.direction * phase * .8 + Math.sin(i * 4.4) * .2);
     }
     sprayPositions.needsUpdate = true;
   }
 
   dispose(): void {
+    this.backMesh.geometry.dispose();
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
     this.lipMesh.geometry.dispose();
@@ -421,13 +440,13 @@ export class SurferVisual {
     const state: RiderState = sim.state;
     const crouch = state === 'barrel' ? 0.25 : state === 'airborne' ? -0.08 :
       state === 'wipeout' ? 0.6 : Math.max(0, (sim.speedMps - 14) * 0.012);
-    this.body.position.y = -crouch * 0.14;
-    this.body.scale.y = state === 'barrel' ? 0.95 : 1;
+    this.body.position.y = -crouch * 0.14 - sim.jumpLoad * .18 - sim.landingPulse * .19 - sim.airTuck * .24;
+    this.body.scale.y = 1 - .10 * sim.jumpLoad - .09 * sim.landingPulse - (state === 'barrel' ? .05 : 0) - .21 * sim.airTuck;
     this.body.rotation.x = state === 'wipeout' ? 0.75 : state === 'airborne' ? -0.1 :
       Math.max(-0.18, Math.min(0.12, sim.lateralMps * 0.02));
     this.body.rotation.z = state === 'wipeout' ? 0.4 : state === 'airborne' ? 0 :
       Math.max(-0.22, Math.min(0.22, -sim.lateralMps * sim.wave.direction * 0.028));
-    const flipperLift = state === 'airborne' || sim.wallRideActive ? 0.48 :
+    const flipperLift = state === 'airborne' || sim.wallRideActive ? .48 - .64 * sim.airTuck :
       state === 'barrel' ? 0.22 : 0.12;
     this.flippers[0].rotation.z = 0.35 + flipperLift;
     this.flippers[1].rotation.z = -0.35 - flipperLift;
@@ -449,7 +468,7 @@ export class SurferVisual {
       } else {
         const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
         const rear = -sim.wave.direction * (0.2 + phase * (1.4 + sim.speedMps * 0.04));
-        positions.setXYZ(i, sim.position.x + spread,
+        positions.setXYZ(i, sim.position.x + spread * (1 + sim.skid * 2) - sim.lateralMps * phase * .2,
           sim.position.y + 0.08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : 0.55),
           sim.position.z + rear);
       }
