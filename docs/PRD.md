@@ -4,7 +4,7 @@
 **Repository:** https://github.com/AniPupper/BarrelRoll  
 **Updated:** November 19, 2026
 
-**Status:** Build specification; implementation is in progress.
+**Current implementation owner:** Teddy is carrying the riding, tricks, presentation, audio, campaign, Freeplay, and integration upgrades together on the `Teddy` branch. The original team assignments below document how the foundation was divided. Teddy controls commits for this upgrade.
 **Canonical PRD:** This file replaces the two separate owner PRDs.
 
 BarrelRoll is a single-player, 3D browser surfing game inspired by [Cork 7](https://cork7.com/). A penguin rides a surfboard made of ice, carving across waves, riding inside curling barrels, launching from the lip, combining exaggerated spins and flips, and landing back on the water. The camera follows behind the penguin. Famous surfing locations must have different wave behavior as well as different scenery.
@@ -604,7 +604,7 @@ Record device/browser, steps, expected/actual results, and unresolved issues in 
 ### A8. App integration and GitHub release — both teammates participate
 
 1. Anika merges the base scaffold first, with npm scripts for `dev`, `typecheck`, `test`, `build`, and `preview`. Teddy then merges the reviewed shared contracts and engine/progress stubs. Add meaningful tests with implementation; an empty suite is not gameplay verification.
-2. Use focused branches such as `teddy/surf-barrels`, `teddy/progression`, `anika/tricks-landings`, and `anika/maps-ui`. Start from current `main` and update from it before merging. Only Anika changes the shared dependency/lockfile setup unless coordinated.
+2. Integrate this upgrade on the existing `Teddy` branch and preserve the shared foundation.
 3. Each PR describes behavior, owned files changed, checks run, and remaining limitations. The other teammate reviews. Resolve conflicts by preserving both contributions, not overwriting the other person’s file.
 4. Anika’s bootstrap creates Teddy’s progress store, loads the selected map/environment, creates the session with Anika’s `createTrickController`, connects events to the HUD and progress store, and starts the session. No component creates a second renderer or simulation loop.
 5. Merge an early playable flow before all scenery is finished: title → Mavericks → controllable wave → real trick and landing → HUD → timer expiry → results → saved clear → Jeffreys Bay unlock. Prove a barrel and an aerial in this integration.
