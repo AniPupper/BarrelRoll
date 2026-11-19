@@ -23,6 +23,7 @@ export class WaveModel {
   readonly joinX: number;
   readonly phase: number;
   private enteredAtS: Array<number | null>;
+  private peelAlongM: number | null = null;
 
   constructor(map: MapDefinition, phase = 0) {
     this.map = map;
@@ -34,10 +35,35 @@ export class WaveModel {
 
   resetWave(): void {
     this.enteredAtS.fill(null);
+    this.peelAlongM = null;
+  }
+
+  setPeelPosition(alongM: number): void {
+    this.peelAlongM = clamp(alongM, 0, this.map.wave.rideLengthM);
+  }
+
+  get peelPositionM(): number | null {
+    return this.peelAlongM;
   }
 
   along01(alongM: number): number {
     return clamp(alongM / this.map.wave.rideLengthM, 0, 1);
+  }
+
+  private peelingPeak(alongM: number, aheadStartM: number, aheadFadeM: number): number {
+    if (this.peelAlongM === null) return 1;
+    const fromRider = alongM - this.peelAlongM;
+    // The face becomes a shoulder ahead; its projecting lip rolls back sooner
+    // so the rider can see through the opening rather than into a water wall.
+    return smoothstep((fromRider + 30) / 18) *
+      (1 - smoothstep((fromRider - aheadStartM) / aheadFadeM));
+  }
+
+  whitewaterAt(alongM: number): number {
+    if (this.peelAlongM === null || this.sectionAt(alongM) < 0) return 0;
+    const behind = this.peelAlongM - alongM;
+    return smoothstep((behind - 11) / 12) *
+      (1 - smoothstep((behind - 65) / 25));
   }
 
   private faceHeightScale(alongM: number): number {
@@ -55,7 +81,8 @@ export class WaveModel {
       const fallEnd = Math.min(1, section.end01 + 0.045);
       const fall = 1 - smoothstep((along - fallStart) /
         Math.max(0.001, fallEnd - fallStart));
-      scale = Math.max(scale, 0.46 + 0.54 * rise * fall);
+      scale = Math.max(scale, 0.46 + 0.54 * rise * fall *
+        this.peelingPeak(alongM, 6, 20));
     }
     return scale;
   }
@@ -124,7 +151,8 @@ export class WaveModel {
     const edge = smoothstep((along - section.start01) / entryFade) *
       smoothstep((section.end01 - along) / exitFade);
     const rollingShape = 0.92 + 0.08 * Math.sin(alongM * 0.09 - timeS * 0.45 + this.phase);
-    return 0.12 + section.radiusM * edge * this.openFraction(index, timeS) * rollingShape;
+    return 0.12 + section.radiusM * edge * this.peelingPeak(alongM, 0, 3) *
+      this.openFraction(index, timeS) * rollingShape;
   }
 
   crossSectionAt(alongM: number, u: number, timeS: number): Vec3 {
@@ -138,7 +166,9 @@ export class WaveModel {
     const curl = clamp((u - 0.78) / 0.22, 0, 1);
     const radius = this.curlRadius(alongM, timeS);
     const joinY = this.faceHeight(this.joinX, alongM, timeS);
-    const tipX = Math.max(0.2, this.joinX - radius * 2.55);
+    const crash = this.whitewaterAt(alongM);
+    const tipX = Math.max(0.2, this.joinX - radius * 2.55 -
+      crash * Math.min(5, this.map.wave.faceWidthM * 0.27));
     const tipY = this.faceHeight(tipX, alongM, timeS) + Math.min(0.42, radius * 0.2);
     const oneMinusCurl = 1 - curl;
     const w0 = oneMinusCurl * oneMinusCurl * oneMinusCurl;
@@ -172,7 +202,7 @@ export class WaveModel {
       inside,
       radiusM: radius,
       openFraction,
-      foam: 1 - smoothstep(openFraction),
+      foam: Math.max(1 - smoothstep(openFraction), this.whitewaterAt(alongM)),
       centerX,
       centerY,
     };
