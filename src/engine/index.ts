@@ -3,6 +3,7 @@ import {
   Color,
   DirectionalLight,
   PerspectiveCamera,
+  Mesh, PlaneGeometry, ShaderMaterial,
   Quaternion,
   Scene,
   Vector3,
@@ -64,10 +65,17 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   const waveVisual = new WaveVisual(simulation.wave, options.map.visual.waterColor,
     options.map.visual.foamColor);
   const surfer = new SurferVisual(options.settings, options.map.visual.foamColor);
-  scene.add(waveVisual.mesh, waveVisual.lipMesh, waveVisual.lipFoam, waveVisual.impactFoam,
+  scene.add(waveVisual.mesh, waveVisual.backMesh, waveVisual.lipMesh, waveVisual.lipFoam, waveVisual.impactFoam,
     waveVisual.curlSpray, surfer.group);
   surfer.addSprayTo(scene);
   const wake = new CarveWake(scene);
+  const shadow = new Mesh(new PlaneGeometry(2.5, 3.7), new ShaderMaterial({
+    transparent: true, depthWrite: false, uniforms: { strength: { value: 0 } },
+    vertexShader: 'varying vec2 st; void main(){st=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader: 'varying vec2 st; uniform float strength; void main(){float d=length(st*2.-1.);gl_FragColor=vec4(.008,.075,.09,strength*(1.-smoothstep(.1,1.,d)));}',
+  }));
+  shadow.visible = false;
+  scene.add(shadow);
   let environment: EnvironmentHandle;
   try {
     environment = options.createEnvironment(scene, options.map, options.settings);
@@ -89,6 +97,13 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   let cameraReady = false;
   let focusReady = false;
   const cameraFocus = new Vector3();
+  const previousRotation = new Quaternion();
+  const currentRotation = new Quaternion();
+  const contactRotation = new Quaternion();
+  const planeNormal = new Vector3(0, 0, 1);
+  const surfaceNormal = new Vector3();
+  let lastAlong = simulation.alongM;
+  let geometryTime = -1;
 
   const size = () => {
     const width = Math.max(1, options.mount.clientWidth || window.innerWidth);
@@ -108,7 +123,15 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   if (!resizeObserver) window.addEventListener('resize', size);
 
   const render = (frameDtS: number) => {
-    waveVisual.update(simulation.simulationTimeS);
+    if (geometryTime !== simulation.simulationTimeS) {
+      waveVisual.update(simulation.simulationTimeS);
+      geometryTime = simulation.simulationTimeS;
+    }
+    if (simulation.alongM < lastAlong - 1) {
+      cameraReady = focusReady = false;
+      previousRotation.copy(simulation.orientation);
+    }
+    lastAlong = simulation.alongM;
     wake.update(simulation);
     surfer.update(simulation, settings);
     const alpha = Math.min(1, accumulatorS / (1 / 60));
@@ -121,39 +144,48 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     );
     surfer.group.position.copy(rider);
     const q = simulation.orientation;
-    surfer.group.quaternion.copy(new Quaternion(q.x, q.y, q.z, q.w));
+    surfer.group.quaternion.copy(previousRotation).slerp(currentRotation.copy(q), alpha);
     if (simulation.state === 'surfing') {
       surfer.group.rotateZ(simulation.railAngle);
-      surfer.group.rotateY(Math.sin(simulation.skid * Math.PI) * .32);
+      surfer.group.rotateY(simulation.skidSide * simulation.skid * .56);
+      if (simulation.landingPulse > 0) surfer.group.quaternion.slerp(contactRotation, simulation.landingPulse ** 2);
     }
     const heading = new Vector3(simulation.heading.x, 0, simulation.heading.z).normalize();
-    const airHeight = Math.max(0, rider.y - simulation.wave.surfaceAt(simulation.alongM,
-      rider.x, simulation.simulationTimeS).position.y);
+    const water = simulation.wave.surfaceAt(rider.z * simulation.wave.direction, rider.x, simulation.simulationTimeS);
+    const airHeight = Math.max(0, rider.y - water.position.y);
+    shadow.visible = simulation.state === 'airborne';
+    if (shadow.visible) {
+      surfaceNormal.copy(water.normal);
+      shadow.position.copy(water.position).addScaledVector(surfaceNormal,.035);
+      shadow.quaternion.setFromUnitVectors(planeNormal,surfaceNormal);
+      shadow.scale.setScalar(1 + Math.min(airHeight,8) * .07);
+      shadow.material.uniforms.strength.value = .46 / (1 + airHeight * .14);
+    }
     const inBarrel = simulation.state === 'barrel';
-    const onWall = simulation.wallRideActive;
-    const barrel = inBarrel ? simulation.wave.barrelAt(simulation.alongM, 0, 0,
-      simulation.simulationTimeS) : null;
-    const barrelCameraX = barrel ? barrel.centerX - Math.min(3,
-      Math.max(0, (options.map.wave.barrelSections[barrel.sectionIndex].radiusM - 1.2) * 1.5)) : 0;
-    const distance = barrel ? onWall ? 4.6 : 4.0 : 8 + Math.min(4, airHeight * 0.22);
-    const distance = barrel ? onWall ? 7 : 5.3 : 8 + Math.min(4, airHeight * 0.22);
-    const desired = barrel ?
-      new Vector3(barrelCameraX, barrel.centerY - Math.min(0.5, barrel.radiusM * 0.2), rider.z)
-        .addScaledVector(new Vector3(0, 0, simulation.wave.direction), -distance) :
-      rider.clone().addScaledVector(heading, -distance);
-    if (!barrel) desired.y += 3.2 + Math.min(2, airHeight * 0.13);
+    const direction = simulation.wave.direction;
+    const cameraAlong = Math.max(0, rider.z * direction - 3.8);
+    const pocket = inBarrel ? simulation.wave.tubeCameraAt(cameraAlong, simulation.simulationTimeS) : null;
+    const distance = 8 + Math.min(4, airHeight * .22);
+    const desired = pocket ? new Vector3().copy(pocket) : rider.clone().addScaledVector(heading, -distance);
+    if (!pocket) desired.y += 3.2 + Math.min(2, airHeight * .13);
     if (!cameraReady) {
       camera.position.copy(desired);
       cameraReady = true;
     } else camera.position.lerp(desired, 1 - Math.exp(-6 * Math.max(0, frameDtS)));
+    if (pocket) {
+      // Damping can leave the lens in the water when the curtain first folds.
+      const localPocket = simulation.wave.tubeCameraAt(camera.position.z * direction, simulation.simulationTimeS);
+      if (localPocket) {
+        camera.position.x = Math.max(localPocket.x - .28, Math.min(localPocket.x + .28, camera.position.x));
+        camera.position.y = Math.max(localPocket.y - .28, Math.min(localPocket.y + .28, camera.position.y));
+      }
+    }
     // Look ahead mainly along the wave. Leading the lateral heading by several
     // meters made a rightward carve appear to move left on screen.
-    const target = barrel ?
-      new Vector3(barrelCameraX - .65, barrel.centerY + .35,
-      new Vector3(barrelCameraX, barrel.centerY + 0.15,
-        rider.z + simulation.wave.direction * 7) :
+    const target = pocket ?
+      new Vector3(pocket.x - .8, pocket.y + .16, rider.z + direction * 7) :
       rider.clone().addScaledVector(new Vector3(0, 0, simulation.wave.direction), 5);
-    if (!barrel) {
+    if (!pocket) {
       target.x += heading.x * 0.45;
       target.y += 1.4;
     }
@@ -186,7 +218,9 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     while (accumulatorS >= 1 / 60 && steps < 8 && !simulation.ended) {
       const wasAirborne = simulation.state === 'airborne';
       input.advance(1 / 60, simulation.state === 'surfing' || simulation.state === 'barrel');
+      previousRotation.copy(simulation.orientation);
       simulation.step(input.frame(), 1 / 60);
+      if (wasAirborne && simulation.state === 'surfing') contactRotation.copy(previousRotation);
       if (!wasAirborne && simulation.state === 'airborne') input.beginAir();
       if (!simulation.ended) environment.update(simulation.simulationTimeS, 1 / 60);
       accumulatorS -= 1 / 60;
@@ -219,6 +253,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     if (disposed) return;
     input.clear();
     simulation.reset();
+    previousRotation.copy(simulation.orientation);
     simulation.start();
     accumulatorS = 0;
     lastFrameMs = null;
@@ -257,6 +292,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
   window.addEventListener('blur', onBlur);
   renderer.domElement.addEventListener('blur', onBlur);
   renderer.domElement.addEventListener('pointerdown', focusCanvas);
+  previousRotation.copy(simulation.orientation);
   render(0);
 
   return {
@@ -289,6 +325,8 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       renderer.domElement.removeEventListener('pointerdown', focusCanvas);
       resizeObserver?.disconnect();
       if (!resizeObserver) window.removeEventListener('resize', size);
+      shadow.geometry.dispose();
+      shadow.material.dispose();
       wake.dispose();
       environment.dispose();
       waveVisual.dispose();

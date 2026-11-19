@@ -77,7 +77,6 @@ function parseRun(value: unknown): RunResult | null {
       !isMode(value.mode) || !nonnegativeInteger(value.score) ||
       !nonnegative(value.durationS) ||
       !['timer', 'player-ended', 'ride-out', 'missed-exit', 'wipeout'].includes(value.reason as string) ||
-      !['timer', 'player-ended'].includes(value.reason as string) ||
       !nonnegative(value.longestBarrelS) ||
       !nonnegativeInteger(value.largestLandedSpinDeg) ||
       !nonnegativeInteger(value.bestCombo) ||

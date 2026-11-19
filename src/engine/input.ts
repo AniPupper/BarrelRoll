@@ -66,6 +66,7 @@ export class GameplayInput {
       jumpChargeS,
       charge01: (this.chargingS ?? 0) / .6,
       trick: {
+        tucked: this.chargingS === null && this.held.has('space'),
         spinAxis: axis(this.held.has('a'), this.held.has('d')),
         flipAxis: axis(this.held.has('s') && !this.blockedFlip.has('s'),
           this.held.has('w') && !this.blockedFlip.has('w')),
