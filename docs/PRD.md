@@ -2,7 +2,8 @@
 
 **Team:** Teddy Kindler and Anika  
 **Repository:** https://github.com/AniPupper/BarrelRoll  
-**Date:** November 17, 2026  
+**Updated:** November 19, 2026
+
 **Status:** Build specification; implementation is in progress.
 **Canonical PRD:** This file replaces the two separate owner PRDs.
 
@@ -10,15 +11,17 @@ BarrelRoll is a single-player, 3D browser surfing game inspired by [Cork 7](http
 
 **Confirmed requirements:** desktop/laptop browser on Mac and Windows; A/D steering, W/S air flips, and Space to jump; wave-driven forward speed; a camera behind the penguin; an ice surfboard; exaggerated and impossible tricks; playable wave barrels; multiple famous destinations, starting with Mavericks; one game built together in the same GitHub repository.
 
-**First-release defaults:** Free Surf and a 120-second Score Run; all six maps available immediately; local records, medals, and cosmetic board colors; stylized 3D art; HTML/CSS, TypeScript, Three.js, and Vite. Use one application, one renderer, one physics clock, and one lockfile. Multiplayer, accounts, online leaderboards, controller/mobile controls, video export, and full fluid simulation are later work.
+**Game structure.** BarrelRoll is strictly single-player. The campaign starts at Mavericks off Pillar Point near Half Moon Bay and unlocks one level at a time. It ends with a single giant wave at Praia do Norte in Nazaré, Portugal. Clear all five main levels to unlock untimed Freeplay across the five campaign spots and bonus destination Uluwatu. Local records, optional medals, and cosmetic board colors give players goals after the campaign.
 
-A new player should be surfing, jumping, and attempting a trick within a minute. Start standing on a board, without paddling or waiting for a set. The loop is choose a barrel or aerial line → carve with the wave's changing speed → control the maneuver → exit or land → bank points → try a harder combination. Recover from a wipeout within two seconds.
+**Build scope.** Use stylized 3D art, HTML/CSS, TypeScript, Three.js, and Vite with one application, one renderer, one physics clock, and one lockfile. Accounts, online leaderboards, controller/mobile controls, video export, and full fluid simulation are outside the release scope.
+
+A new player should be surfing, jumping, and attempting a trick within a minute. Start standing on a board, without paddling or waiting for a set. The loop is choose a barrel or aerial line → carve with the wave's changing speed → control the maneuver → exit or land → bank points → try a harder combination. Recover from a wipeout within two seconds in Levels 1–4 and Freeplay. A wipeout ends a campaign attempt at Nazaré.
 
 | Work | Teddy | Anika |
 | --- | --- | --- |
 | Surfing | Movement, jumping, water contact, air trajectory, barrels, recovery | Air rotations, flips, spins, corks, trick recognition, landing assessment |
 | Presentation | Penguin/ice-board model and animation, wave, camera, gameplay spray; Mavericks map and scenery | Five remaining locations, scenery, menus, HUD, audio |
-| Game systems | Runtime scoring, timer, challenges, medals, saved progress, board-color unlocks | Present scores, challenges, medals, results, and settings through the UI |
+| Game systems | Runtime scoring, timer, campaign goals and unlocks, medals, save data, board-color unlocks | Present the campaign path, locked levels, Freeplay, scores, medals, results, and settings |
 | Integration | Engine, shared contracts, progression API | App wiring, project setup, dependencies, deployment |
 
 **Updated split:** Anika now owns the tricks and landing mechanics that were previously assigned to Teddy. Teddy now owns challenges, progression, and saved records that were previously assigned to Anika. The two sections below are the ownership reference for implementation.
@@ -71,7 +74,7 @@ The rideable wave must curl overhead into a visible hollow tube. The surfer trav
 - The wave should rise from a low trough into a steep breaking peak, then peel down to a lower open shoulder ahead. A distinct, partly translucent lip must pitch over and land close to the face, leaving a visible hollow arch. The breaking edge advances with the ride: the lip collapses into churning whitewater behind the surfer while the opening stays visible ahead. Shade the inner wall and add moving surface highlights, foam, and spray.
 - A barrel wall loop counts as continuous barrel occupancy, with the board returning to the wave face at the end. It is an arcade maneuver; no separate aerial landing report or second barrel score is generated.
 - Show impending closure with the visibly shrinking opening and increasing foam before it becomes a collision hazard.
-- A clean exit completes the barrel maneuver and adds it to the pending combo; points bank under the scoring rules below. A closeout or collision loses only the unbanked combo.
+- A clean exit completes the barrel maneuver, updates the longest clean barrel ride, and adds the maneuver to the pending combo. Points bank under the scoring rules below. A closeout or collision loses only the unbanked combo.
 - Match rendered and physical openings. No invisible walls where the player sees open water.
 - First complete a generous, nonclosing development barrel. Add narrow and closing barrels after entry, riding, and exit work reliably.
 
@@ -106,46 +109,63 @@ Starting balance, subject to playtesting:
 - Accumulate adjusted action values before applying the combo multiplier. Bank after three safe seconds without a qualifying action. Show banked score and pending combo separately.
 - Wipeouts remove pending points but preserve banked points. R deliberately starts a new run and clears that run’s total.
 - A timer ending midair does not bank an unfinished trick. Bank previously completed safe maneuvers, end once, and freeze input.
-- Score Run lasts 120 seconds of active simulation time. Free Surf is untimed and offers an End Run button through Anika’s UI.
-- At the end of a wave, transition quickly to the next wave in the same run; safely completed points may bank. Do not reset the run timer or accumulated statistics.
-- Store longest continuous barrel duration, largest landed spin, best combo, clean landings, wipeouts, and elapsed active time. Count barrel/air time using simulation seconds, not render frames.
+- Campaign Levels 1–4 each last 120 seconds of active simulation time. At time expiry, finalize the score and check the required goals. Levels 1–4 and Freeplay roll into the next wave without resetting accumulated statistics or the campaign timer.
+- Level 5 is an untimed, one-wave attempt. Start high on the face of one enormous wave. The player drops in, carves down the face, and rides out on the shoulder. Crossing the marked exit while on the board ends the attempt with a clear. A wipeout ends the attempt with Retry. Aerials are optional, and the only clear condition is making the ride out.
+- Freeplay is untimed and keeps rolling through waves until the player selects End Run or discards the session. At Nazaré, it repeats the giant wave and uses normal wipeout recovery.
+- Track longest continuous barrel duration, longest cleanly exited barrel duration, largest landed spin, best combo, clean landings, wipeouts, and elapsed active time. Count barrel/air time using simulation seconds, not render frames.
 
 - Use Anika’s reported trick family, completed spin, completed flips, and landing quality. Failed landings award no aerial points and must not update largest landed spin or clean-landing records.
 - Deduplicate aerial reports by `airId`. Barrel scoring comes from your wave occupancy checks. Neither source may double-credit a maneuver.
 
-### T5. Challenges, medals, and saved progression
+### T5. Campaign, Freeplay, and saved progression
 
-Each map has three independently earned medals. Evaluate them from the engine’s finished `RunResult`; keep challenge evaluation in your progression module, separate from the live engine. Anika’s UI displays your returned goals and unlocks. Goals may be earned across separate finished runs in either mode unless a goal explicitly says Score Run.
+#### Five main levels
+
+| Level | Location | Required goals in one attempt | Unlock on first clear |
+| --- | --- | --- | --- |
+| 1 | Mavericks, Pillar Point, California | Land 2 clean jumps | Level 2 |
+| 2 | Supertubes, Jeffreys Bay, South Africa | Bank a 2,000-point combo | Level 3 |
+| 3 | Banzai Pipeline, Oʻahu, Hawaiʻi | Ride a barrel for at least 3 seconds and exit it cleanly | Level 4 |
+| 4 | Teahupoʻo, Tahiti | Complete a clean barrel ride of at least 3.5 seconds and finish with 4,000 banked points | Level 5 |
+| 5 | Praia do Norte, Nazaré, Portugal | Ride one giant wave from the drop-in to the marked shoulder exit without wiping out | Freeplay, including Uluwatu |
+
+- Start a fresh save with only Level 1 unlocked. Clear Levels 1–4 by meeting every required goal in the same attempt and finishing the timer. Clear Level 5 by making the ride out. Results show which goals were met. Show Retry for a missed goal and Next Level for a clear before Level 5. On the first Level 5 clear, show an Enter Freeplay action.
+- Let players retry and replay any unlocked level. Restarting or discarding an attempt drops that attempt’s progress. The Continue action opens the earliest uncleared level. After Level 5, keep the campaign available for replays and give Freeplay its own title-menu action.
+- Freeplay offers all six locations, the same surfing and scoring mechanics, no timer, and no required goals. Players can end a run to save their Freeplay record and eligible medals. Uluwatu, Bali, is a bonus Freeplay location with cliffside barrels and aerial sections.
+- Treat required targets as initial tuning. Playtest the full sequence with a new player and tune the wave or targets if a level blocks progress unfairly.
+
+#### Optional medals and records
+
+Each map has three independently earned medals. Evaluate medals and campaign goals from the completed `RunResult` in the progression module. Each medal can come from a separate completed run. Medals with a specified mode are earned in that mode. Medals and board colors are optional rewards.
 
 | Map | Medal 1 | Medal 2 | Medal 3 |
 | --- | --- | --- | --- |
-| Mavericks | 3 clean landings in one run | Continuous barrel of 4 s | Score 2,000 in a Score Run |
+| Mavericks | 3 clean landings in one run | Continuous barrel of 4 s | Score 2,000 in the campaign |
 | Pipeline | Continuous barrel of 3 s | Continuous barrel of 6 s | Bank a 2,500-point combo |
-| J-Bay | 6 clean landings in one run | Bank a 3,000-point combo | Score 6,000 in a Score Run |
-| Uluwatu | Continuous barrel of 3 s | Land a 720 | Score 5,000 in a Score Run |
-| Teahupoo | Continuous barrel of 2 s | Continuous barrel of 3.5 s | Score 4,000 in a Score Run |
-| Nazare | Land a 720 | Land a 1080 | Bank a 5,000-point combo |
+| J-Bay | 6 clean landings in one run | Bank a 3,000-point combo | Score 6,000 in the campaign |
+| Uluwatu | Continuous barrel of 3 s | Land a 720 | Score 5,000 in Freeplay |
+| Teahupoʻo | Continuous barrel of 2 s | Continuous barrel of 3.5 s | Score 4,000 in the campaign |
+| Nazaré | Land a 720 | Land a 1080 | Bank a 5,000-point combo |
 
 These are provisional thresholds. Playtest every challenge before release and lower targets that are impossible or tedious. Do not make a medal depend on an event or metric absent from the shared contract. A special “double backflip + 1080” achievement would need an explicit metric extension first.
 
 - Unlock three additional accent tints for the ice board at 3, 6, and 12 total medals. Tints must not change speed, handling, or jump strength; the board remains visibly made of ice.
-- Keep every map playable from the beginning. Progression rewards mastery without blocking a teammate’s demo.
-- Keep best scores separate by map and mode; an unlimited Free Surf score must not compete with a timed Score Run record.
+- Track campaign and Freeplay best scores separately for each location.
 - Use the engine’s `score` and `bestCombo` fields directly. `score-banked` is for feedback; do not add it again to a completed result.
 
 #### Persistence and reliability
 
-Use a versioned local save such as `barrelroll.save.v1` containing settings, selected board color, records keyed by map and mode, earned medal IDs, and a bounded recent-result history used to deduplicate run IDs.
+Use a versioned local save such as `barrelroll.save.v1` containing settings, selected board color, records keyed by map and mode, earned medal IDs, cleared campaign levels, and a bounded recent-result history used to deduplicate run IDs.
 
-- Persist only completed run results. An abandoned run does not grant new records or medals.
+- Persist only completed run results. Reject results for locked levels and pre-unlock Freeplay. Abandoned runs grant no records, medals, or clears. Derive unlocked levels and Freeplay availability from the valid sequence of saved campaign clears.
 - Validate parsed saves and recover to defaults if corrupt. Unknown fields should not break startup.
 - Handle blocked/full storage gracefully: keep the game playable and show a short “Progress could not be saved on this device” message.
 - Explain in Settings that progress is local to this browser/device. No login or cloud synchronization in this release.
 - Reset Progress requires confirmation and must not accidentally remove unrelated browser data.
-- Refreshing after a completed run preserves records, medals, settings, and unlocked colors.
+- Refreshing after a completed run preserves campaign clears, Freeplay access, records, medals, settings, and unlocked colors.
 - Duplicate `run-ended` delivery must not award medals twice or duplicate history. Keep bounded history rather than unbounded growth.
 
-- Own challenge definitions in `src/progress/challenges.ts`, keyed by shared `MapId`. Expose their labels, targets, and earned IDs to Anika’s UI; do not make her duplicate these rules in map metadata.
+- Own campaign definitions and medal challenges in `src/progress/`. Expose the ordered levels, goals, medal targets, and unlock state to Anika’s UI through the progression API.
 - Own settings persistence as part of the same save service. Anika builds the settings controls and calls your API, then forwards effective settings to the engine and audio.
 - Keep progression independent of DOM and engine internals so it can be tested using plain results and an injected storage adapter.
 
@@ -156,7 +176,7 @@ Teddy owns `src/shared/contracts.ts`; both teammates review changes. Merge contr
 | Paths | Owner |
 | --- | --- |
 | `src/engine/**`, `tests/engine/**`, `public/assets/surfer/**` | Teddy: movement, wave, contact, renderer, camera, score, run lifecycle |
-| `src/progress/**`, `tests/progress/**` | Teddy: challenges, medals, unlocks, records, settings persistence |
+| `src/progress/**`, `tests/progress/**` | Teddy: challenges, medals, unlocks, campaign clears, records, settings persistence |
 | `src/shared/**` | Teddy maintains; both review |
 | `src/tricks/**`, `tests/tricks/**` | Anika: aerial orientation, rotation accounting, labels, landing evaluation |
 | `src/app/**`, `src/ui/**`, `src/audio/**`, `tests/app/**` | Anika |
@@ -175,7 +195,9 @@ Anika’s app imports the engine, tricks, map registry, and progress API and wir
 import type { Scene } from 'three';
 
 export type MapId = 'mavericks' | 'pipeline' | 'jbay' | 'uluwatu' | 'teahupoo' | 'nazare';
-export type Mode = 'free-surf' | 'score-run';
+export type Mode = 'campaign' | 'freeplay';
+export type RideFormat = 'timed-series' | 'single-wave' | 'endless-series';
+export type RunEndReason = 'timer' | 'wave-finished' | 'wipeout' | 'player-ended';
 export type Quality = 'low' | 'medium' | 'high';
 export type RiderState = 'surfing' | 'barrel' | 'airborne' | 'wipeout';
 
@@ -216,6 +238,7 @@ export interface GameSettings {
 
 export interface RunMetrics {
   longestBarrelS: number;
+  longestCleanBarrelS: number; // longest continuous barrel ride with a clean exit
   largestLandedSpinDeg: number;
   bestCombo: number; // highest banked combo points
   cleanLandings: number;
@@ -228,7 +251,7 @@ export interface RunResult extends RunMetrics {
   mode: Mode;
   score: number; // banked points only
   durationS: number;
-  reason: 'timer' | 'player-ended';
+  reason: RunEndReason;
 }
 
 export interface HudSnapshot extends RunMetrics {
@@ -239,7 +262,7 @@ export interface HudSnapshot extends RunMetrics {
   multiplier: number;
   speedMps: number;
   barrelS: number; // current continuous barrel, zero outside
-  remainingS: number | null; // null in Free Surf
+  remainingS: number | null; // set only for timed series
   trickLabel: string;
 }
 
@@ -274,6 +297,7 @@ export declare function createSurfSession(options: {
   mount: HTMLElement;
   map: MapDefinition;
   mode: Mode;
+  format: RideFormat;
   seed: number;
   settings: GameSettings;
   createEnvironment: EnvironmentFactory;
@@ -290,9 +314,10 @@ export declare function createSurfSession(options: {
 - Teddy provides Mavericks map data; Anika provides the other five maps. Each validates their map data, and Teddy validates again at the engine boundary with a readable error.
 - `createSurfSession` creates one canvas/renderer and a ready, nonrunning session. `start` begins once. The engine alone owns the animation loop, clock, resize handling, gameplay input, wave mesh, and camera.
 - The environment factory adds scenery/lights to the supplied scene; it creates no renderer, animation loop, input handlers, rideable water, or gameplay collisions. Environment assets are preloaded by the app before session creation. The engine calls its update and disposal methods and forwards settings changes to `setSettings`; visual quality changes must work without restarting the run.
-- `pause` freezes physics, timer, combo expiry, and environment animation. `resume` does not restore stale held keys. `restart` resets all runtime state, creates a new run ID, and retains the selected map/mode/seed/settings.
+- `pause` freezes physics, timer, combo expiry, and environment animation. `resume` does not restore stale held keys. `restart` resets all runtime state, creates a new run ID, and retains the selected map, mode, ride format, seed, and settings.
 - `finish` resolves only already-completed safe actions and emits one final result. `dispose` frees listeners, RAF, geometries/materials/textures owned by the session, and environment resources; it does not implicitly finish/save a run. Repeated pause/dispose/finish calls are safe.
-- Switching maps means disposing the old session and creating a new one. Exiting a live run requires an explicit End Run or Discard choice.
+- In a single-wave attempt, emit a `wave-finished` result only when the rider reaches the marked exit in a surfing state. A wipeout ends the attempt immediately with a `wipeout` result, before any recovery or wave rollover. If the rider crosses the exit airborne, resolve the attempt on landing in the shoulder zone. Keep the shoulder rideable through that landing.
+- Switching maps means disposing the old session and creating a new one. Leaving a campaign attempt early requires confirming Discard. Leaving Freeplay offers End Run to save results or Discard to leave without saving.
 - Events begin with `run-started`. Send HUD updates at no more than 10 Hz. Results emit once per run; Teddy’s progression store also deduplicates saved results by `runId`. Anika’s app calls that store on `run-ended`.
 - Teddy’s engine owns runtime scores and metrics; Teddy’s progress module owns final-result persistence and challenge evaluation. Anika owns trick/landing reports, UI, and audio. `score-banked` is presentation feedback, not a second source of saved totals.
 - The engine handles WASD, Space, and R only while the session is running and focused. The app alone handles Escape/menu navigation and calls `pause()`/`resume()`; it must never process movement keys.
@@ -362,22 +387,44 @@ export interface ChallengeDefinition {
   mode?: Mode; // omitted means either mode
 }
 
+export interface CampaignLevelDefinition {
+  mapId: MapId;
+  format: Exclude<RideFormat, 'endless-series'>;
+  goals: readonly ({
+    id: string;
+    label: string;
+  } & (
+    | { metric: keyof RunMetrics | 'score'; target: number }
+    | { requiredEndReason: 'wave-finished' }
+  ))[];
+}
+
 export interface ProgressSnapshot {
   settings: GameSettings;
   bestRuns: Partial<Record<MapId, Partial<Record<Mode, RunResult>>>>;
   earnedMedalIds: string[];
+  clearedCampaignMapIds: MapId[];
+  unlockedCampaignMapIds: MapId[];
+  freeplayUnlocked: boolean;
   unlockedBoardColors: string[];
   storageAvailable: boolean;
 }
 
 export interface ProgressStore {
+  readonly campaignLevels: readonly CampaignLevelDefinition[];
   readonly challenges: readonly ChallengeDefinition[];
   getSnapshot(): ProgressSnapshot;
   recordResult(result: RunResult): {
     snapshot: ProgressSnapshot;
     newMedalIds: string[];
     newBoardColors: string[];
+    accepted: boolean;
     duplicate: boolean;
+    campaignOutcome?: {
+      metGoalIds: string[];
+      cleared: boolean;
+      newlyCleared: boolean;
+    };
   };
   updateSettings(patch: Partial<GameSettings>): ProgressSnapshot;
   reset(): ProgressSnapshot;
@@ -388,7 +435,7 @@ export declare function createProgressStore(): ProgressStore;
 ```
 
 - Read/validate the versioned save when creating the store. Return default in-memory state if storage is unavailable; `storageAvailable` tells the app to display the save warning.
-- `recordResult` validates input, evaluates medals once, updates records separately by map/mode, and saves. Anika displays returned unlocks; she does not re-evaluate goals or write `localStorage` directly.
+- `recordResult` accepts timer-ended results for unlocked timed levels, wave-finished or wipeout results for the unlocked Nazaré finale, and player-ended results for Freeplay after unlock. For each accepted result, evaluate medals and campaign goals once, update mode-specific records, and save. Anika displays the returned outcome and unlocks through the same API used to gate session start.
 - `updateSettings` validates ranges and unlocked board colors, persists them, and returns effective settings for the app to forward to the engine/audio. Rendering a setting is Anika’s work; storing it is Teddy’s.
 - `reset` removes only this game’s progress/settings after the app obtains confirmation. Store methods return snapshots that callers must treat as read-only.
 
@@ -399,7 +446,7 @@ export declare function createProgressStore(): ProgressStore;
 | T0 — Contracts | After Anika’s scaffold merges, add shared types, engine lifecycle stub, progress API stub, and engine fixtures | Typecheck/build pass and Anika can code against real exports |
 | T1 — Wave foundation | Movement, jumping, contact, behind-surfer camera, simple surfer, restart | Player can carve for 30 s, jump, and recover; use a labeled development-only no-rotation trick stub until Anika’s module arrives |
 | T2 — Barrel and trick integration | Curling geometry, occupancy, closeouts, connect Anika’s trick controller, scoring/run events | Player rides a visible barrel, lands a recognized trick, and sees accurate HUD values |
-| T3 — Progression | All 18 medal definitions, records, settings save, color unlocks, storage recovery | Anika’s UI can show a real earned medal and saved record after refresh |
+| T3 — Progression | Five sequential levels, Freeplay unlock, 18 optional medals, records, cosmetics, and local saves | Saved clears open the next level after refresh, and clearing Level 5 opens Freeplay |
 | T4 — Release tuning | Six-map compatibility, pause/cleanup, camera polish, frame independence | Shared release checks pass with the real trick module; no production stubs |
 
 ### T8. Teddy’s tests and acceptance criteria
@@ -413,8 +460,12 @@ Automate wave/map validation, barrel entry/exit/closeout, combo banking, duplica
 - [ ] Anika’s landing report controls the recovery outcome and is scored once.
 - [ ] Pausing freezes the timer, combo window, environment, and trick simulation.
 - [ ] 30/60/120 FPS caps give comparable motion, timer behavior, and scores.
-- [ ] A completed run emits one result; abandoned runs grant no new medals.
-- [ ] Saved records, medals, settings, and unlocked colors survive refresh.
+- [ ] A new save opens only Mavericks. Clearing each level opens exactly the next level and clearing Nazaré opens Freeplay.
+- [ ] A failed, restarted, or discarded attempt cannot clear a level. Clearing a level with multiple goals requires meeting them all in one timed attempt.
+- [ ] At Nazaré, the campaign ends after one wave. Making the shoulder exit clears the level even with zero points. A wipeout ends the attempt and leaves Freeplay locked if the finale has never been cleared.
+- [ ] A campaign barrel goal uses the longest cleanly exited ride. A closeout cannot count toward it.
+- [ ] A completed run emits one result. Duplicate or locked-mode results cannot grant progress.
+- [ ] Saved campaign clears, Freeplay access, records, medals, settings, and unlocked colors survive refresh. Reset Progress restores the initial campaign state.
 - [ ] Corrupt or unavailable storage never prevents starting a game.
 - [ ] Every medal is reachable with the merged maps and trick system.
 
@@ -448,14 +499,14 @@ The following are **proposed arcade interpretations** of famous places. Numeric 
 
 | Map ID / location | Visual identity | Distinct riding experience | Main skill | Difficulty |
 | --- | --- | --- | --- | --- |
-| `mavericks` — Mavericks, Half Moon Bay, California, USA | Cool Pacific light, offshore water, sandy cove and bluffs | Broad arcade face, generous first tube for an inner-wall loop, readable closeout later, strong launch zones | Learn carving, barrels, jumps, and clean landings | Easy |
-| `pipeline` — Banzai Pipeline, Hawaii, USA | Tropical shore, turquoise wall, strong white spray | Fast hollow tube with long barrel sections and a clear exit | Hold a line through the tube and exit cleanly | Hard |
-| `jbay` — Jeffreys Bay, South Africa | Open coastline, long clean lines, golden light | Long right-breaking ride with separated launch opportunities and few interruptions | Chain varied tricks along the wave | Medium |
+| `mavericks` — Mavericks, Pillar Point, California | Fog banks, dark reef water, and Pillar Point bluffs | Broad, forgiving shoulder, a generous first tube for inner-wall loops, and accessible launch zones | Learn carving, barrels, jumps, and clean landings | Easy |
+| `pipeline` — Banzai Pipeline, Oʻahu, Hawaiʻi | Tropical shore, turquoise wall, strong white spray | Fast hollow tube with long barrel sections and a clear exit | Hold a line through the tube and exit cleanly | Hard |
+| `jbay` — Supertubes, Jeffreys Bay, South Africa | Open coastline, long clean lines, golden light | Long right-breaking ride with separated launch opportunities and few interruptions | Maintain speed and chain varied tricks | Medium |
 | `uluwatu` — Uluwatu, Bali, Indonesia | Limestone cliffs, elevated coastal silhouettes, deep turquoise | Left-breaking ride alternating open faces, tubes, and takeoff sections | Adapt between barrel riding and aerials | Hard |
-| `teahupoo` — Teahupoo, Tahiti, French Polynesia | Mountain-backed coast, dark blue-green water, heavy lip | Compact steep face, narrow tube, shortest closeout warning | Precise positioning and timely exits | Expert |
-| `nazare` — Nazare, Portugal | Stormy Atlantic, headland/lighthouse silhouette, huge spray | Towering open faces and strongest launch zones; barrels are not its focus | Use air time for impossible combos | Expert |
+| `teahupoo` — Teahupoʻo, Tahiti, French Polynesia | Mountain-backed coast, dark blue-green water, heavy lip | Compact steep face, narrow tube, shortest closeout warning | Precise positioning and timely exits | Expert |
+| `nazare` — Praia do Norte, Nazaré, Portugal | Dark Atlantic water and the lighthouse on the headland for scale | One towering wave per campaign attempt, with a steep drop, a fast open face, and a visible shoulder exit | Control speed and make the ride out | Expert |
 
-The entire first release includes all six, with Mavericks first. Build Mavericks, Pipeline, and J-Bay first as an integration checkpoint, then add the other three.
+Mavericks, Jeffreys Bay, Pipeline, Teahupoʻo, and Nazaré form the campaign in that order. All five return in Freeplay alongside Uluwatu. Build Mavericks, Jeffreys Bay, and Pipeline first as an integration checkpoint.
 
 #### Initial wave configuration
 
@@ -466,9 +517,9 @@ The entire first release includes all six, with Mavericks first. Build Mavericks
 | `jbay` | Right | 4 m / 12 m | 700 m | 11 m/s | 0.45–0.58, 1.2 m, never | 0.15–0.25, 0.60–0.70, 0.85–0.95, 1.3× |
 | `uluwatu` | Left | 5 m / 10 m | 480 m | 12 m/s | 0.25–0.42 and 0.65–0.80, 1.3 m, after 7 s each | 0.45–0.60 and 0.84–0.94, 1.4× |
 | `teahupoo` | Left | 6 m / 8 m | 300 m | 13 m/s | 0.20–0.65, 1.1 m, after 11 s | 0.75–0.90, 1.1× |
-| `nazare` | Right | 18 m / 32 m | 650 m | 19 m/s | None | 0.20–0.38 and 0.65–0.85, 2.0× |
+| `nazare` | Right | 25 m / 45 m | 650 m | 19 m/s | None | 0.35–0.68, 2.0× |
 
-Intervals are normalized positions along a wave, not world coordinates. All maps start at `along01: 0.05, face01: 0.35`; verify each spawn with Teddy’s engine. Closure is timed from first entry into the section for that wave, as defined in the shared contract. Tune the values with Teddy when a tube is too small for the surfer or a goal cannot be completed.
+Intervals are normalized positions along a wave, not world coordinates. Use `along01: 0.05, face01: 0.35` for most spots and `along01: 0.05, face01: 0.80` at Nazaré so the player starts high on the face. At Nazaré, mark the ride-out at the end of the wave where the face tapers to a broad shoulder. Verify each spawn and the finale exit with Teddy’s engine. Closure is timed from first entry into the section for that wave, as defined in the shared contract. Tune the values with Teddy when a tube is too small for the surfer or a goal cannot be completed.
 
 **A map is meaningfully different only if its wave configuration changes at least two riding properties**: speed, face size/steepness, barrel space/length, closure timing, break direction, ride length, or launch lift. Color changes alone do not count.
 
@@ -489,25 +540,25 @@ Intervals are normalized positions along a wave, not world coordinates. All maps
 
 | Screen | Required content and behavior |
 | --- | --- |
-| Title | BarrelRoll title, Play, How to Play, Settings, Credits |
-| Map select | Six cards showing location, difficulty, signature wave behavior, preview, local best score, and medal state |
-| Mode select | Free Surf description; 120-second Score Run description; selected location stays visible |
+| Title | Start Campaign or Continue, Campaign level select, Freeplay with its unlock requirement until earned, How to Play, Settings, Credits |
+| Campaign levels | Five ordered cards with location, goals, preview, best score, and locked, available, or cleared state. Locked cards name the prerequisite |
+| Freeplay map select | After the final clear, six cards showing location, signature wave behavior, preview, best Freeplay score, and medal state |
 | Loading | Location name, loading state, one useful control tip, readable error/retry |
 | Tutorial | A/D, W/S, and Space diagram, wave-driven speed, on-water versus in-air actions, barrel explanation, safe landing advice; dismissible and reopenable |
-| In-game HUD | Banked score, pending combo/multiplier, current trick, barrel timer when inside, run countdown in Score Run |
-| Pause | Resume, Restart Run, End Run, Settings, Return to Maps with explicit discard/end handling |
-| Results | Score, best combo, longest barrel, largest landed spin, clean landings, wipeouts, earned medals; Retry and Change Map |
+| In-game HUD | Banked score, pending combo/multiplier, current trick, live barrel timer, and campaign goals, with a countdown in Levels 1–4 and a shoulder exit marker at Nazaré |
+| Pause | Resume, Restart Run, Settings, and return to the mode’s map screen. Confirm discard for a live campaign attempt. Offer End Run or Discard in Freeplay |
+| Results | Score, best combo, longest barrel, largest landed spin, clean landings, wipeouts, and earned medals. Campaign results show goal outcomes, Retry, and the applicable Next Level or Enter Freeplay action. Freeplay results offer Retry and Change Map |
 | Settings | Quality, Reduced Motion, master volume/mute, board color; save changes |
 
 - Use normal HTML/CSS overlays for menus and HUD; the engine supplies the canvas.
 - Keep the center of the screen, surfer, barrel opening, and landing area clear of large panels.
 - Show understandable state labels: “In the barrel,” “720 + backflip,” “Clean landing,” “Combo lost.” Do not expose debug names to players.
-- No score countdown in Free Surf. Provide an End Run button accessible through pause.
+- Freeplay keeps the scoring HUD and offers End Run through pause. Show required goals during campaign attempts and the countdown only in Levels 1–4. At Nazaré, keep the shoulder exit readable from the chase camera.
 - State changes must prevent gameplay keyboard input while menus have focus. On Escape, the engine and app must not both toggle pause independently; route the pause request through one agreed app handler in the integration PR, with engine input clearing handled by `pause()`.
 - Tutorial must explain that W/S flip only after takeoff and need a fresh press if held before the jump. A/D steer on the wave and spin in the air. Near wide barrels, holding A/D toward the lip starts a wall ride; the opposite direction reverses or exits.
 - Keyboard-accessible buttons, visible focus, readable text contrast, and status cues that do not rely solely on color are required.
 
-- On `run-ended`, call Teddy’s `recordResult(result)` once, then render the returned medals, unlocks, and saved records. Use `getSnapshot()` to populate map cards and settings.
+- Use `getSnapshot()` to gate session creation and populate campaign cards, Freeplay access, and settings. Pass the selected campaign level’s `format` to the engine. Use `endless-series` for every Freeplay session. On `run-ended`, call Teddy’s `recordResult(result)` once, then render the returned campaign outcome, medals, unlocks, and records.
 - On settings changes, call `updateSettings`, then forward the returned settings to `session.setSettings` and audio. Disable locked board colors using the returned unlock list.
 - Reset Progress must ask for confirmation before calling Teddy’s `reset()`. Show a short save warning when `storageAvailable` is false.
 
@@ -525,8 +576,8 @@ Intervals are normalized positions along a wave, not world coordinates. All maps
 | --- | --- | --- |
 | A0 — Foundation | Minimal Vite/TypeScript/Three.js scaffold, dependencies, lockfile, bootstrap, npm scripts | Simple screen renders; typecheck/build pass; merge before feature branches |
 | A1 — Trick module | Rotation integration, labels, combined tricks, landing assessment, unit fixtures | Artificial takeoff/contact fixtures verify spins, flips, reversals, and landing grades without requiring finished scenery |
-| A2 — First playable app | Wire real engine/tricks/progress APIs; menus, HUD, tutorial, initial Mavericks/Pipeline/J-Bay scenery | A real barrel and landed 720 appear in HUD; one finished Score Run reaches results |
-| A3 — Six locations and rewards UI | Remaining maps, challenge/medal/settings display, audio, loading/errors | Every map is distinct; UI displays Teddy’s stored medals and colors after refresh |
+| A2 — First playable app | Wire real engine/tricks/progress APIs, campaign cards, HUD, tutorial, and initial Mavericks/Jeffreys Bay/Pipeline scenery | A player can clear Mavericks, unlock Jeffreys Bay, and see a real barrel and landed trick in the HUD during playtesting |
+| A3 — Full campaign and Freeplay | Remaining maps, unlock/results UI, medals/settings display, audio, loading/errors | Five levels clear in order and the final clear opens untimed Freeplay across all six maps |
 | A4 — Release | Asset cleanup, credits, quality options, production deployment | Shared release checks pass on the actual browser URL; no production mocks |
 
 During development, use a clearly labeled fixture to preview HUD/results while waiting for engine output, and use plain contact/input fixtures for tricks. Never save mock results as player records or describe stub output as verified gameplay. Temporary adapters belong in development/test paths and must not ship as fallback gameplay.
@@ -540,9 +591,9 @@ Automate angular wraparound, net rotation/reversal, trick families and labels, f
 - [ ] Clean, sketchy, and failed landings are visibly different after engine integration.
 - [ ] 720, 1080, double flips, and one impossible combined trick can be landed.
 - [ ] Trick state resets after wipeout/restart and never advances during pause.
-- [ ] Six map cards load the right configuration and scenery; each map changes at least two riding properties.
+- [ ] Five campaign cards enforce unlock order. After the final clear, six Freeplay maps load the right configuration and scenery. Each map changes at least two riding properties.
 - [ ] Menus and settings are usable with keyboard focus without steering the surfer underneath.
-- [ ] HUD shows actual engine data; Free Surf has no countdown and banked points are not added twice.
+- [ ] Campaign HUD shows actual goal progress, the timer in Levels 1–4, and a visible ride-out at Nazaré. Freeplay has no countdown or required goals. Banked points are counted once.
 - [ ] Medals, board colors, records, and warnings render from Teddy’s progression API.
 - [ ] Failed asset loads show retry/recovery UI rather than a blank page.
 - [ ] Ten consecutive map switches do not accumulate canvases, listeners, audio, or scene resources.
@@ -556,13 +607,13 @@ Record device/browser, steps, expected/actual results, and unresolved issues in 
 2. Use focused branches such as `teddy/surf-barrels`, `teddy/progression`, `anika/tricks-landings`, and `anika/maps-ui`. Start from current `main` and update from it before merging. Only Anika changes the shared dependency/lockfile setup unless coordinated.
 3. Each PR describes behavior, owned files changed, checks run, and remaining limitations. The other teammate reviews. Resolve conflicts by preserving both contributions, not overwriting the other person’s file.
 4. Anika’s bootstrap creates Teddy’s progress store, loads the selected map/environment, creates the session with Anika’s `createTrickController`, connects events to the HUD and progress store, and starts the session. No component creates a second renderer or simulation loop.
-5. Merge an early playable flow before all scenery is finished: title → map → controllable wave → real trick and landing → HUD → End Run → results → saved record. Prove a barrel and an aerial in this integration.
-6. Integrate Mavericks, Pipeline, and J-Bay first, followed by Uluwatu, Teahupoo, and Nazare. Mavericks is the first level. Three maps are a checkpoint, not the completed release.
+5. Merge an early playable flow before all scenery is finished: title → Mavericks → controllable wave → real trick and landing → HUD → timer expiry → results → saved clear → Jeffreys Bay unlock. Prove a barrel and an aerial in this integration.
+6. Integrate Mavericks, Jeffreys Bay, and Pipeline first, then Teahupoʻo and Nazaré. Add Uluwatu to Freeplay. The release includes the full campaign and all six Freeplay locations.
 7. Before release, run `npm ci`, `npm run typecheck`, `npm test`, and `npm run build`. Test the production preview; a passing build alone does not prove gameplay.
-8. On the merged app, verify every map, both modes, A/D steering, W/S air flips, Space jumps, automatic wave speed, a barrel, a landed trick, a wipeout, pause/resume, a complete Score Run, medals/records after refresh, and ten map switches. Test Chrome and Safari where available and record actual device/browser versions.
+8. On the merged app, verify all five campaign clears from a fresh save, failure and retry, the one-wave Nazaré finale, the Freeplay unlock and all six maps, A/D steering, W/S air flips, Space jumps, automatic wave speed, a barrel, a landed trick, a wipeout, pause/resume, saved progress after refresh, and ten map switches. Test Chrome and Safari where available and record actual device/browser versions.
 9. Anika configures GitHub Pages for the repository path, including Vite’s base path and asset URLs. Both teammates open the live build and repeat the core play flow before calling it complete.
 
-**Final handoff:** one repository, this single PRD, one install/build process, one playable browser URL, six maps, both playtest notes, asset credits, and no duplicate engines, trick implementations, progression stores, or app shells.
+**Final handoff:** one repository, this single PRD, one install/build process, one playable browser URL, five campaign levels, six Freeplay maps, both playtest notes, asset credits, and no duplicate engines, trick implementations, progression stores, or app shells.
 
 ### A9. Project references
 
@@ -571,4 +622,5 @@ Record device/browser, steps, expected/actual results, and unresolved issues in 
 - [Surfer surfing glossary](https://www.surfer.com/how-to/surfing-lingo-glossary), consulted November 17, 2026: visual reference for a barrel as the open hollow of a breaking wave, with whitewater deeper inside the tube.
 - [Academy of Surfing Instructors: Parts of the Wave](https://www.academyofsurfing.com/news/parts-of-the-wave), consulted November 17, 2026: reference for the face, pitching lip, whitewater, and less-steep shoulder.
 - [Three.js documentation](https://threejs.org/manual/) and [Vite guide](https://vite.dev/guide/): proposed implementation stack. Choose compatible stable versions during setup and commit the lockfile.
+- Location references: [Supertubes, Jeffreys Bay](https://jeffreysbay.com/surf/), [Banzai Pipeline, Go Hawaiʻi](https://www.gohawaii.com/islands/oahu/things-to-do/beaches/ehukai-beach-park-banzai-pipeline), [Teahupoʻo, Olympics](https://www.olympics.com/ioc/news/paris-2024-olympic-surfing-venue-tahiti-facts), [Praia do Norte, VisitPortugal](https://www.visitportugal.com/en/content/praia-do-norte-nazare), and [Uluwatu, Indonesia Travel](https://www.indonesia.travel/gb/en/destination/bali-nusa-tenggara/bali/uluwatu).
 - Map parameters, course layouts, challenge thresholds, and closeout timing are original arcade design proposals, not statements about actual surf conditions.
