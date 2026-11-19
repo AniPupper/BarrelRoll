@@ -1,12 +1,14 @@
 import { MAP_CARDS } from './app/mapCards';
 import { creditsContent, howToPlayContent } from './app/infoContent';
 import { locationArt } from './app/locationArt';
-import heroWaveUrl from './assets/hero-wave.svg?url';
+import heroPhotoUrl from './assets/mavericks-hero.webp?url';
 import { MAP_ORDER, STARTING_MAP_ID } from './maps';
 import { createProgressStore } from './progress';
 import { BOARD_COLOR_UNLOCKS } from './progress/challenges';
 import type { GameSettings, MapId, Quality } from './shared/contracts';
 import './style.css';
+
+const playableUrl = `${import.meta.env.BASE_URL}play.html`;
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('BarrelRoll app mount is missing');
@@ -43,8 +45,6 @@ function mapButton(id: MapId): string {
 function renderTitle(): void {
   app!.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
     <main class="landing" id="main-content">
-      <img class="landing__art" src="${heroWaveUrl}" alt="" />
-      <div class="landing__shade" aria-hidden="true"></div>
       <header class="landing__header shell">
         ${brand()}
         <nav class="landing__nav" aria-label="Game information">
@@ -55,20 +55,23 @@ function renderTitle(): void {
         <span class="header-edition">EST 2026 &nbsp;/&nbsp; SOLO SURF</span>
       </header>
       <div class="landing__body shell">
-        <div class="landing__copy">
-          <p class="kicker"><span class="kicker__line"></span> THE OCEAN IS YOUR PLAYGROUND</p>
-          <h1>BARREL<br><span>ROLL</span><i aria-hidden="true">↗</i></h1>
-          <p class="landing__lead">Chase the curl, throw the impossible and find your own line across the world</p>
+        <section class="landing__copy">
+          <p class="kicker"><span class="kicker__line"></span> AN ARCADE SURF ADVENTURE</p>
+          <h1>BARREL<br><span>ROLL</span></h1>
+          <p class="landing__lead">Find your line on the world's most legendary waves</p>
           <button type="button" class="action-button" id="play-button"><span>EXPLORE THE BREAKS</span><span class="action-button__icon" aria-hidden="true">↗</span></button>
-          <p class="landing__hint">STARTING AT MAVERICKS <span aria-hidden="true">/</span> CALIFORNIA</p>
+          <a class="landing__play-link" href="${playableUrl}">PLAY THE GAME <span aria-hidden="true">↗</span></a>
+        </section>
+        <div class="landing__visual">
+          <img src="${heroPhotoUrl}" alt="A towering wave at Mavericks under a foggy California sky" />
+          <div class="landing__visual-caption"><span>FIRST BREAK</span><strong>MAVERICKS</strong><span>HALF MOON BAY, CALIFORNIA</span></div>
+          <span class="landing__visual-index" aria-hidden="true">01</span>
         </div>
-        <div class="landing__stamp" aria-hidden="true"><span>NO TWO<br>WAVES<br>ALIKE</span><b>✳</b></div>
       </div>
       <footer class="landing__footer shell">
-        <span class="footer-label">ARCADE SURFING<br>WITH A WILD SIDE</span>
+        <span class="footer-label">BARRELROLL <span aria-hidden="true">/</span> SOLO SURF</span>
         <span class="footer-line" aria-hidden="true"></span>
-        <span class="footer-location"><b>01</b><span>FIRST BREAK<br>MAVERICKS, CALIFORNIA</span></span>
-        <span class="footer-scroll">PICK A DESTINATION <span aria-hidden="true">↓</span></span>
+        <span class="footer-location">THE OCEAN IS YOUR PLAYGROUND</span>
       </footer>
     </main>`;
   app!.querySelector<HTMLButtonElement>('#play-button')?.addEventListener('click', () => openScreen('maps'));
@@ -94,20 +97,20 @@ function renderMaps(): void {
       </header>
       <div class="atlas__body shell">
         <div class="atlas__intro">
-          <p class="kicker"><span class="kicker__line"></span> CHOOSE YOUR BREAK</p>
-          <h1>FIND YOUR<br><span>LINE</span></h1>
-          <p>Every coast has its own rhythm<br>Explore the breaks and pick your next challenge</p>
+          <div><p class="kicker"><span class="kicker__line"></span> THE SURF ATLAS</p><h1>CHOOSE A <span>BREAK</span></h1></div>
+          <p>From the first wave at Mavericks to the final ride at Nazaré<br>Select a coast to preview its break</p>
         </div>
         <div class="atlas__stage">
           <section class="feature" aria-live="polite" aria-label="Selected location">
-            <div class="feature__art" aria-hidden="true">${locationArt(selectedMap, 'feature')}<span class="feature__number">${indexOf(selectedMap)}</span></div>
+            <div class="feature__art" aria-hidden="true">${locationArt(selectedMap, 'feature')}<span class="feature__number">LOCATION ${indexOf(selectedMap)}</span></div>
             <div class="feature__info">
               <div class="feature__eyebrow"><span>${card.difficulty.toUpperCase()} BREAK</span><span>${isOpeningMap ? 'FIRST IN LINE' : 'ON THE HORIZON'}</span></div>
               <h2>${card.name}</h2>
               <p class="feature__region">${card.region}</p>
               <p class="feature__signature">${card.signature}</p>
               <div class="feature__metrics"><span><small>SCORE RUN BEST</small><strong>${best?.toLocaleString() ?? '—'}</strong></span><span><small>MEDALS EARNED</small><strong>${earned} <i>/ ${goals.length}</i></strong></span></div>
-              <div class="feature__status"><span class="feature__status-dot" aria-hidden="true"></span><span>${isOpeningMap ? 'Gameplay integration in progress' : 'Location preview · gameplay to follow'}</span></div>
+              <a class="feature__play-link" href="${playableUrl}">OPEN THE PLAYABLE CAMPAIGN <span aria-hidden="true">↗</span></a>
+              <div class="feature__status"><span>${isOpeningMap ? 'FIRST BREAK' : 'EXPLORE THE COAST'}</span><span>PREVIEW</span></div>
             </div>
           </section>
           <section class="breaks" aria-label="Surf locations">
