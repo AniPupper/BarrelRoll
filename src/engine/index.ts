@@ -136,6 +136,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     const barrelCameraX = barrel ? barrel.centerX - Math.min(3,
       Math.max(0, (options.map.wave.barrelSections[barrel.sectionIndex].radiusM - 1.2) * 1.5)) : 0;
     const distance = barrel ? onWall ? 4.6 : 4.0 : 8 + Math.min(4, airHeight * 0.22);
+    const distance = barrel ? onWall ? 7 : 5.3 : 8 + Math.min(4, airHeight * 0.22);
     const desired = barrel ?
       new Vector3(barrelCameraX, barrel.centerY - Math.min(0.5, barrel.radiusM * 0.2), rider.z)
         .addScaledVector(new Vector3(0, 0, simulation.wave.direction), -distance) :
@@ -149,6 +150,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     // meters made a rightward carve appear to move left on screen.
     const target = barrel ?
       new Vector3(barrelCameraX - .65, barrel.centerY + .35,
+      new Vector3(barrelCameraX, barrel.centerY + 0.15,
         rider.z + simulation.wave.direction * 7) :
       rider.clone().addScaledVector(new Vector3(0, 0, simulation.wave.direction), 5);
     if (!barrel) {
