@@ -39,13 +39,3 @@ export const maps: Record<MapId, MapDefinition> = {
     spawn:{along01:.05,face01:.35},visual:{waterColor:'#228b8a',foamColor:'#e8f8e8',skyColor:'#c5dbcc'},
   },
 };
-import type { MapId } from '../shared/contracts';
-import { mavericks } from './mavericks';
-
-export const STARTING_MAP_ID: MapId = 'mavericks';
-export const STARTING_MAP = mavericks;
-export const MAP_ORDER: readonly MapId[] = [
-  'mavericks', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare',
-];
-
-export { mavericks };
