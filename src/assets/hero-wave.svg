@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#102a42"/><stop offset=".6" stop-color="#376e80"/><stop offset="1" stop-color="#9dbdb5"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#2e8798"/><stop offset="1" stop-color="#08384e"/></linearGradient>
+    <linearGradient id="wave" x1=".15" y1=".1" x2=".85" y2="1"><stop stop-color="#89e7d8"/><stop offset=".4" stop-color="#238ca1"/><stop offset="1" stop-color="#063449"/></linearGradient>
+    <linearGradient id="foam" x2="0" y2="1"><stop stop-color="#fff4d6"/><stop offset="1" stop-color="#b7f2e9"/></linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1600v900H0z"/>
+  <circle cx="1190" cy="218" r="160" fill="#ffd7a9" opacity=".13"/>
+  <circle cx="1190" cy="218" r="73" fill="#ffddb1" opacity=".86"/>
+  <path fill="#7d9da1" opacity=".62" d="M0 535 170 480 330 515 495 446 670 510 825 467 980 520 1180 476 1390 514 1600 451v449H0z"/>
+  <path fill="#2c6577" d="M0 592c292-41 511-23 760-8 261 16 520-55 840-38v354H0z"/>
+  <path fill="url(#sea)" d="M0 635c317-44 553-5 836 8 289 13 522-36 764-26v283H0z"/>
+  <path fill="url(#wave)" d="M438 900c129-170 267-335 460-412 156-63 339-65 485 26 112 70 167 212 217 386z"/>
+  <path fill="#0b4c62" opacity=".74" d="M915 900c-15-170 61-287 179-328 165-57 329 66 506 328z"/>
+  <path fill="#073247" opacity=".72" d="M1190 900c-80-132-79-234 12-279 103-52 222 45 398 279z"/>
+  <path fill="url(#foam)" d="M795 607c157-165 333-199 485-126 140 67 237 204 268 356-68-141-174-241-296-269-124-29-270 39-380 169 28-90 93-166 176-219-78 20-163 58-253 89z"/>
+  <path fill="#f7ffe9" opacity=".82" d="M840 590c152-126 296-150 430-84 118 58 209 175 256 299-78-119-170-192-277-216-120-26-251 28-347 135 33-80 94-144 171-196-75 19-154 47-233 62z"/>
+  <path fill="#a6f1e5" opacity=".6" d="M545 840c204-144 397-177 548-95 68 37 122 90 163 155h-46c-99-132-268-145-484-60z"/>
+  <path fill="#fff5d8" opacity=".55" d="M0 893c230-84 470-75 703 7H0zm711 7c234-81 447-76 641 0z"/>
+  <g fill="#e8fff1" opacity=".7"><circle cx="1434" cy="601" r="4"/><circle cx="1474" cy="629" r="3"/><circle cx="1354" cy="543" r="3"/><circle cx="1030" cy="544" r="3"/></g>
+</svg>
