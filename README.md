@@ -1,6 +1,6 @@
 # BarrelRoll
 
-An arcade surfing game being built by Anika and Teddy. The five-level campaign opens at Mavericks and finishes with a giant wave at Nazaré. Complete the campaign to unlock untimed Freeplay and the bonus Uluwatu break.
+An arcade surfing game being built by Anika and Teddy. Finish one tutorial wave at Mavericks to unlock all six locations for untimed freeplay. Scores and medals track personal bests.
 
 ## Local development
 

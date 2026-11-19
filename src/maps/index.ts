@@ -1,11 +1,10 @@
 import type { MapDefinition, MapId } from '../shared/contracts';
 import { mavericks } from './mavericks';
 import { pipeline } from './pipeline';
-import { campaign } from './campaign';
 
 export const STARTING_MAP_ID: MapId = 'mavericks';
 export const STARTING_MAP = mavericks;
-export const MAP_ORDER: readonly MapId[] = [...campaign, 'uluwatu'];
+export const MAP_ORDER: readonly MapId[] = ['mavericks', 'jbay', 'pipeline', 'teahupoo', 'nazare', 'uluwatu'];
 export { mavericks };
 
 const tube = (start01: number, end01: number, radiusM: number, closeAfterEntryS: number | null) =>

@@ -32,13 +32,13 @@ function run(patch: Partial<RunResult> = {}): RunResult {
   };
 }
 
-test('all 18 challenges use result metrics and Score Run gates', () => {
+test('freeplay sessions can earn all optional score medals', () => {
   const store = createProgressStore({ storage: new MemoryStorage() });
   assert.equal(store.challenges.length, 18);
-  const first = store.recordResult(run({ cleanLandings: 3, longestBarrelS: 4, score: 5000 }));
+  const first = store.recordResult(run({ cleanLandings: 3, longestBarrelS: 4, score: 1000 }));
   assert.deepEqual(first.newMedalIds, ['mavericks-clean-3', 'mavericks-barrel-4']);
   assert.equal(first.snapshot.earnedMedalIds.length, 2);
-  const second = store.recordResult(run({ mode: 'score-run', score: 2000, reason: 'timer' }));
+  const second = store.recordResult(run({ score: 2000 }));
   assert.deepEqual(second.newMedalIds, ['mavericks-score-2000']);
   assert.deepEqual(second.newBoardColors, ['#48c9b0']);
 });
@@ -97,10 +97,20 @@ test('settings validate locked colors, persist, and reset only the game key', ()
 test('all challenge thresholds are evaluable and unlock every cosmetic color', () => {
   const store = createProgressStore({ storage: new MemoryStorage() });
   for (const mapId of ['mavericks', 'pipeline', 'jbay', 'uluwatu', 'teahupoo', 'nazare'] as const) {
-    store.recordResult(run({ mapId, mode: 'score-run', reason: 'timer', score: 10000,
+    store.recordResult(run({ mapId, mode: 'free-surf', reason: 'player-ended', score: 10000,
       bestCombo: 10000, longestBarrelS: 10, largestLandedSpinDeg: 1080,
       cleanLandings: 10 }));
   }
   assert.equal(store.getSnapshot().earnedMedalIds.length, 18);
   assert.equal(store.getSnapshot().unlockedBoardColors.length, 4);
+});
+
+test('an older completed Mavericks timer unlocks freeplay even with zero points', () => {
+  const storage = new MemoryStorage();
+  const store = createProgressStore({storage});
+  store.recordResult(run({mode:'score-run', reason:'timer'}));
+  const old = JSON.parse(storage.getItem(SAVE_KEY)!);
+  old.levelsCleared = 0;
+  storage.setItem(SAVE_KEY,JSON.stringify(old));
+  assert.equal(createProgressStore({storage}).getSnapshot().levelsCleared,1);
 });
