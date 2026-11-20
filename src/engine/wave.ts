@@ -33,7 +33,7 @@ export class WaveModel {
   // The face, lip, foam and camera all sample the same cross-section.
   private arc = { along: NaN, time: NaN, peel: null as number | null,
     radius: 0, joinY: 0, reach: 0, drop: 0, angle: 0 };
-  private readonly wallTrack = Array.from({ length: 35 }, () => ({ x: 0, y: 0, distance: 0 }));
+  private readonly wallTrack = Array.from({ length: 35 }, () => ({ x: 0, y: 0, distance: 0, slope: 0, progress: 0 }));
 
   constructor(map: MapDefinition, phase = 0) {
     this.map = map;
@@ -328,7 +328,10 @@ export class WaveModel {
     const add = (x: number, y: number) => {
       const previous = points[Math.max(0, count - 1)];
       const distance = count ? previous.distance + Math.hypot(x - previous.x, y - previous.y) : 0;
-      Object.assign(points[count++], { x, y, distance });
+      const p = points[count++];
+      p.x = x;
+      p.y = y;
+      p.distance = distance;
     };
     const tip = this.crossSectionAt(alongM, 1, timeS);
     const width = Math.max(.1, this.joinX - tip.x);
@@ -366,14 +369,32 @@ export class WaveModel {
       const t = (d - a.distance) / Math.max(.0001, b.distance - a.distance);
       return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
     };
-    const distance = angle / (Math.PI * 2) * perimeter;
-    const position = { ...sample(distance), z: alongM * this.direction };
     const footprint = Math.min(.55, perimeter * .055);
-    const before = sample(distance - footprint), after = sample(distance + footprint);
-    const dx = after.x - before.x, dy = after.y - before.y;
-    const length = Math.hypot(dx, dy) || 1;
-    const tangent = { x: dx / length, y: dy / length };
-    return { position, tangent, normal: { x: -tangent.y, y: tangent.x, z: 0 }, perimeter };
+    // Allow time to change rail angle at the tight foot of the curtain.
+    // Equal distance per tick here would whip the board upright in a few frames.
+    const turn = 2 * Math.PI;
+    let progress = 0;
+    for (let i = 0; i < count; i++) {
+      const p = points[i];
+      const before = sample(p.distance - footprint), after = sample(p.distance + footprint);
+      p.slope = Math.atan2(after.y - before.y, after.x - before.x);
+      if (i) {
+        const previous = points[i - 1];
+        p.slope += Math.round((previous.slope - p.slope) / turn) * turn;
+        progress += p.distance - previous.distance + .13 * perimeter * Math.abs(p.slope - previous.slope);
+      }
+      p.progress = progress;
+    }
+    const fraction = angle / turn - Math.floor(angle / turn);
+    const target = fraction * progress;
+    let i = 1;
+    while (i < count - 1 && points[i].progress < target) i++;
+    const a = points[i - 1], b = points[i];
+    const t = (target - a.progress) / Math.max(.0001, b.progress - a.progress);
+    const slope = a.slope + (b.slope - a.slope) * t;
+    const normal = { x: -Math.sin(slope), y: Math.cos(slope), z: 0 };
+    const position = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: alongM * this.direction };
+    return { position, normal };
   }
 
   barrelAt(alongM: number, x: number, riderCenterY: number, timeS: number): BarrelQuery | null {

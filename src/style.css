@@ -288,6 +288,7 @@ html[data-reduced-motion='true'] .toggle-row__track::after { transition: none; }
 .wave-progress i { display:block; height:100%; background:#ffcf91; transform:scaleX(0); transform-origin:left; transition:transform .12s linear; }
 [data-reduced-motion="true"] .wave-progress i { transition: none; }
 #combo:empty { display: none; }
+#speed { color: #c7e6e2; font-size: .83rem; font-variant-numeric: tabular-nums; }
 .readout,.score {display:grid;gap:.25rem}.readout small,.score small,.run-stats dt {font-weight:700;text-transform:uppercase;letter-spacing:.11em;color:#b5d8d7;font-size:.72rem}
 #combo {color:#ffdc99}.score strong {font-size:1.5rem;font-variant-numeric:tabular-nums}
 #callout {max-width:min(32rem,58vw);line-height:1.45}

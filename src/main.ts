@@ -32,9 +32,9 @@ const button = (label:string,action:string,primary=false) =>
   `<button type="button" class="${primary?'primary-button':'surf-button'}" data-action="${action}">${label}</button>`;
 const number = (n:number) => Math.round(n).toLocaleString();
 const snap = () => progress.getSnapshot();
-const instructions = 'A/D carve. Ride up a steep ramp to launch, or hold and release Space for a bigger air. In the air, A/D spin and W/S flip. Hold Space again to tuck. Shift + carve rides the barrel wall.';
+const instructions = 'A/D carve. W tucks for speed and S brakes. Inside the barrel, hold Shift to loop. A/D choose your direction and S holds your place on the wall. Release Shift to settle. Hold and release Space to jump. In the air, A/D spin, W/S flip, and ←/→ roll. Hold Space again to tuck.';
 const rideTips:Record<MapId,string> = {
-  mavericks:'Hold A to climb under the lip. Carve out with D.',
+  mavericks:'Hold A to get under the lip, then hold Shift to loop the barrel.',
   jbay:'Climb high and carve back down for a cutback. Link it into an air, then ride clear to bank.',
   pipeline:'Stay under the lip and follow the daylight through the opening.',
   teahupoo:'Carve toward the hollow and follow the opening before the lip closes.',
@@ -279,7 +279,8 @@ function render(): void {
 
 function tutorialHint(h: HudSnapshot): string {
   const travelled = maps.mavericks.wave.rideLengthM - h.distanceLeftM;
-  if (h.state === 'barrel') return 'Hold your line · D carves out';
+  if (h.wallRiding) return 'A/D choose direction · S holds your line';
+  if (h.state === 'barrel') return 'Hold Shift to loop · D carves out';
   if (h.state === 'airborne') return 'Release the keys to line up your landing';
   if (travelled < 64) return 'Hold A to climb toward the first barrel';
   if (travelled < 212) return 'Hold A toward the curl · release to trim';
@@ -295,7 +296,7 @@ function showRide(id:MapId) {
   app.innerHTML=`<main class="ride"><div id="water"></div>
     <div class="run-head"><div class="readout"><small>${maps[id].name}</small><strong id="goal"></strong></div>
     <div class="actions">${button('Pause','pause')}</div></div>
-    <div class="run-bottom"><span class="score"><small>${tutorial ? 'Wave remaining' : 'Score'}</small><strong id="score">—</strong>${tutorial ? '<span class="wave-progress" aria-hidden="true"><i id="wave-progress-fill"></i></span>' : '<span id="combo"></span>'}</span>
+    <div class="run-bottom"><span class="score"><small>${tutorial ? 'Wave remaining' : 'Score'}</small><strong id="score">—</strong>${tutorial ? '<span class="wave-progress" aria-hidden="true"><i id="wave-progress-fill"></i></span>' : '<span id="combo"></span>'}<span id="speed" aria-label="Board speed"></span></span>
     <span id="callout"></span></div><div id="overlay"></div></main>`;
   try {
     session=createSurfSession({mount:byId('water'),map:maps[id],mode,seed:8,settings,
@@ -320,6 +321,7 @@ function onEvent(event:GameEvent) {
     const tutorial = mode === 'score-run';
     byId('goal').textContent=tutorial ? tutorialHint(h) : 'Freeplay';
     byId('score').textContent=tutorial ? number(h.distanceLeftM) + ' m' : number(h.score);
+    byId('speed').textContent = Math.round(h.speedMps * 3.6) + ' km/h';
     if (tutorial) {
       const fraction = 1 - h.distanceLeftM / maps[selectedMap].wave.rideLengthM;
       byId('wave-progress-fill').style.transform = `scaleX(${Math.max(0, Math.min(1, fraction))})`;
@@ -329,7 +331,12 @@ function onEvent(event:GameEvent) {
       calloutUntil = performance.now() + 1650;
     }
     previousTrick = h.trickLabel;
-    const live=h.state==='airborne'?h.trickLabel:h.state==='barrel'?`In the barrel · ${h.barrelS.toFixed(1)} s`:'';
+    let live = '';
+    if (h.state === 'airborne') live = h.trickLabel;
+    if (h.state === 'barrel') {
+      const label = h.wallRiding ? h.trickLabel : tutorial ? 'In the barrel' : 'Hold Shift to loop';
+      live = label + ' · ' + h.barrelS.toFixed(1) + ' s';
+    }
     byId('callout').textContent=live || (performance.now()<calloutUntil?lastCallout:'');
   } else if(event.type==='score-banked' && mode==='free-surf') {
     lastCallout='Banked +'+number(event.points); calloutUntil=performance.now()+1200;
