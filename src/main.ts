@@ -34,7 +34,7 @@ const number = (n:number) => Math.round(n).toLocaleString();
 const snap = () => progress.getSnapshot();
 const instructions = 'A/D carve. Ride up a steep ramp to launch, or hold and release Space for a bigger air. In the air, A/D spin and W/S flip. Hold Space again to tuck. Shift + carve rides the barrel wall.';
 const rideTips:Record<MapId,string> = {
-  mavericks:'Use A to climb toward the curl. Ease off to hold your line.',
+  mavericks:'Hold A to climb under the lip. Carve out with D.',
   jbay:'Climb high and carve back down for a cutback. Link it into an air, then ride clear to bank.',
   pipeline:'Stay under the lip and follow the daylight through the opening.',
   teahupoo:'Carve toward the hollow and follow the opening before the lip closes.',
@@ -279,10 +279,10 @@ function render(): void {
 
 function tutorialHint(h: HudSnapshot): string {
   const travelled = maps.mavericks.wave.rideLengthM - h.distanceLeftM;
-  if (h.state === 'barrel') return 'Follow the opening';
+  if (h.state === 'barrel') return 'Hold your line · D carves out';
   if (h.state === 'airborne') return 'Release the keys to line up your landing';
-  if (travelled < 64) return 'A climbs the face · D drops toward the flats';
-  if (travelled < 212) return 'Climb toward the curling lip · ease off to hold your line';
+  if (travelled < 64) return 'Hold A to climb toward the first barrel';
+  if (travelled < 212) return 'Hold A toward the curl · release to trim';
   if (travelled < 330) return 'Hold Space and release to try a jump';
   return 'Ride to the end of the wave to unlock Freeplay';
 }
@@ -294,8 +294,8 @@ function showRide(id:MapId) {
   const tutorial = mode === 'score-run';
   app.innerHTML=`<main class="ride"><div id="water"></div>
     <div class="run-head"><div class="readout"><small>${maps[id].name}</small><strong id="goal"></strong></div>
-    <div class="actions"><span id="clock"></span>${button('Pause','pause')}</div></div>
-    <div class="run-bottom"><span class="score"><small>${tutorial ? 'Wave remaining' : 'Score'}</small><strong id="score">—</strong><span id="combo"></span></span>
+    <div class="actions">${button('Pause','pause')}</div></div>
+    <div class="run-bottom"><span class="score"><small>${tutorial ? 'Wave remaining' : 'Score'}</small><strong id="score">—</strong>${tutorial ? '<span class="wave-progress" aria-hidden="true"><i id="wave-progress-fill"></i></span>' : '<span id="combo"></span>'}</span>
     <span id="callout"></span></div><div id="overlay"></div></main>`;
   try {
     session=createSurfSession({mount:byId('water'),map:maps[id],mode,seed:8,settings,
@@ -319,9 +319,11 @@ function onEvent(event:GameEvent) {
     audio.update(h);
     const tutorial = mode === 'score-run';
     byId('goal').textContent=tutorial ? tutorialHint(h) : 'Freeplay';
-    byId('clock').textContent='';
     byId('score').textContent=tutorial ? number(h.distanceLeftM) + ' m' : number(h.score);
-    byId('combo').textContent=!tutorial && h.pendingCombo ? `+${number(h.pendingCombo)}  ·  ${h.multiplier}×` : '';
+    if (tutorial) {
+      const fraction = 1 - h.distanceLeftM / maps[selectedMap].wave.rideLengthM;
+      byId('wave-progress-fill').style.transform = `scaleX(${Math.max(0, Math.min(1, fraction))})`;
+    } else byId('combo').textContent=h.pendingCombo ? `+${number(h.pendingCombo)}  ·  ${h.multiplier}×` : '';
     if (h.trickLabel !== previousTrick && (h.trickLabel.includes('landing') || ['Barrel exit', 'Driving bottom turn', 'Cutback'].includes(h.trickLabel))) {
       lastCallout = h.trickLabel;
       calloutUntil = performance.now() + 1650;
