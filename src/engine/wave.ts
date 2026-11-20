@@ -33,6 +33,7 @@ export class WaveModel {
   // The face, lip, foam and camera all sample the same cross-section.
   private arc = { along: NaN, time: NaN, peel: null as number | null,
     radius: 0, joinY: 0, reach: 0, drop: 0, angle: 0 };
+  private readonly wallTrack = Array.from({ length: 35 }, () => ({ x: 0, y: 0, distance: 0 }));
 
   constructor(map: MapDefinition, phase = 0) {
     this.map = map;
@@ -317,6 +318,62 @@ export class WaveModel {
     const roof = this.crossSectionAt(alongM, .78 + .22 * .48, timeS);
     const floor = this.faceHeight(roof.x, alongM, timeS);
     return { x: roof.x, y: floor + (roof.y - floor) * .38, z: roof.z };
+  }
+
+  // One turn traces the same cross-section used by the water mesh. Measure
+  // distance along it so a narrow tube and a tall, lopsided tube both ride smoothly.
+  wallContactAt(alongM: number, angle: number, timeS: number) {
+    const points = this.wallTrack;
+    let count = 0;
+    const add = (x: number, y: number) => {
+      const previous = points[Math.max(0, count - 1)];
+      const distance = count ? previous.distance + Math.hypot(x - previous.x, y - previous.y) : 0;
+      Object.assign(points[count++], { x, y, distance });
+    };
+    const tip = this.crossSectionAt(alongM, 1, timeS);
+    const width = Math.max(.1, this.joinX - tip.x);
+    const floorX = this.joinX - width * .40;
+    for (let i = 0; i <= 6; i++) {
+      const x = floorX + (this.joinX - floorX) * i / 6;
+      add(x, this.faceHeight(x, alongM, timeS));
+    }
+    for (let i = 1; i <= 18; i++) {
+      const p = this.crossSectionAt(alongM, .78 + .22 * .92 * i / 18, timeS);
+      add(p.x, p.y);
+    }
+    // The falling curtain meets whitewater at its foot. Round this short
+    // corner so the board rolls through contact with the foam.
+    const lip = points[count - 1];
+    const floorEndX = tip.x + .17 * width;
+    const floorEndY = this.faceHeight(floorEndX, alongM, timeS);
+    const controlX = tip.x + .045 * width;
+    const controlY = this.faceHeight(controlX, alongM, timeS);
+    for (let i = 1; i <= 6; i++) {
+      const t = i / 6, s = 1 - t;
+      add(s ** 3 * lip.x + 3 * s * s * t * tip.x + 3 * s * t * t * controlX + t ** 3 * floorEndX,
+        s ** 3 * lip.y + 3 * s * s * t * tip.y + 3 * s * t * t * controlY + t ** 3 * floorEndY);
+    }
+    for (let i = 1; i <= 4; i++) {
+      const x = floorEndX + (floorX - floorEndX) * i / 4;
+      add(x, this.faceHeight(x, alongM, timeS));
+    }
+    const perimeter = points[count - 1].distance;
+    const sample = (distance: number) => {
+      const d = ((distance % perimeter) + perimeter) % perimeter;
+      let i = 1;
+      while (i < count - 1 && points[i].distance < d) i++;
+      const a = points[i - 1], b = points[i];
+      const t = (d - a.distance) / Math.max(.0001, b.distance - a.distance);
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    };
+    const distance = angle / (Math.PI * 2) * perimeter;
+    const position = { ...sample(distance), z: alongM * this.direction };
+    const footprint = Math.min(.55, perimeter * .055);
+    const before = sample(distance - footprint), after = sample(distance + footprint);
+    const dx = after.x - before.x, dy = after.y - before.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const tangent = { x: dx / length, y: dy / length };
+    return { position, tangent, normal: { x: -tangent.y, y: tangent.x, z: 0 }, perimeter };
   }
 
   barrelAt(alongM: number, x: number, riderCenterY: number, timeS: number): BarrelQuery | null {

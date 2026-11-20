@@ -2,7 +2,9 @@ import type { TrickInput } from '../shared/contracts';
 
 export interface ControlFrame {
   steer: -1 | 0 | 1;
+  drive?: -1 | 0 | 1;
   wallRide: -1 | 0 | 1;
+  wallHeld?: boolean;
   jumpChargeS: number | null;
   charge01?: number;
   trick: TrickInput;
@@ -10,6 +12,7 @@ export interface ControlFrame {
 
 const axis = (negative: boolean, positive: boolean): -1 | 0 | 1 =>
   negative === positive ? 0 : negative ? -1 : 1;
+const rideKeys = new Set(['w', 'a', 's', 'd', 'space', 'shift', 'arrowleft', 'arrowright', 'r']);
 
 function normalize(key: string): string {
   return key === ' ' || key === 'Spacebar' ? 'space' : key.toLowerCase();
@@ -23,7 +26,7 @@ export class GameplayInput {
 
   press(key: string, onWave: boolean): boolean {
     const name = normalize(key);
-    if (!['w', 'a', 's', 'd', 'space', 'shift', 'r'].includes(name)) return false;
+    if (!rideKeys.has(name)) return false;
     if (this.held.has(name)) return true;
     this.held.add(name);
     if (name === 'space' && onWave) this.chargingS = 0;
@@ -32,7 +35,7 @@ export class GameplayInput {
 
   release(key: string): boolean {
     const name = normalize(key);
-    if (!['w', 'a', 's', 'd', 'space', 'shift', 'r'].includes(name)) return false;
+    if (!rideKeys.has(name)) return false;
     this.held.delete(name);
     this.blockedFlip.delete(name);
     if (name === 'space' && this.chargingS !== null) {
@@ -62,12 +65,15 @@ export class GameplayInput {
     this.releasedChargeS = null;
     return {
       steer: axis(this.held.has('a'), this.held.has('d')),
+      drive: axis(this.held.has('s'), this.held.has('w')),
       wallRide: this.held.has('shift') ? axis(this.held.has('a'), this.held.has('d')) : 0,
+      wallHeld: this.held.has('shift'),
       jumpChargeS,
       charge01: (this.chargingS ?? 0) / .6,
       trick: {
         tucked: this.chargingS === null && this.held.has('space'),
         spinAxis: axis(this.held.has('a'), this.held.has('d')),
+        rollAxis: axis(this.held.has('arrowleft'), this.held.has('arrowright')),
         flipAxis: axis(this.held.has('s') && !this.blockedFlip.has('s'),
           this.held.has('w') && !this.blockedFlip.has('w')),
       },
