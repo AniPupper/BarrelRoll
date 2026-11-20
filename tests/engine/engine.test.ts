@@ -96,14 +96,18 @@ test('a held W does not flip at takeoff, but a fresh air press does', () => {
   assert.equal(input.frame().trick.flipAxis, 0);
 });
 
-test('a held steering key drives the barrel wall ride without an extra press', () => {
+test('normal carving stays on the face and Shift engages the barrel wall', () => {
   const input = new GameplayInput();
   input.press('a', true);
   assert.equal(input.frame().steer, -1);
+  assert.equal(input.frame().wallRide, 0);
+  input.press('Shift', true);
   assert.equal(input.frame().wallRide, -1);
   input.release('a');
   assert.equal(input.frame().wallRide, 0);
+  assert.equal(input.frame().wallHeld, true);
   input.clear();
+  assert.equal(input.frame().wallHeld, false);
   assert.equal(input.frame().wallRide, 0);
 });
 
@@ -125,7 +129,7 @@ test('A steers left and D steers right on both break directions', () => {
   }
 });
 
-test('the board carves promptly, settles on release, and forward speed follows the wave', () => {
+test('a carve carries momentum on release and a tuck accelerates ahead of the wave', () => {
   const carving = new SurfSimulation(mavericks, 'free-surf', 1,
     new FixtureTrickController(), () => {});
   const coasting = new SurfSimulation(mavericks, 'free-surf', 1,
@@ -142,14 +146,17 @@ test('the board carves promptly, settles on release, and forward speed follows t
   assert.ok(carving.position.x > startX + 2);
   assert.ok(Math.abs(coasting.speedMps - startSpeed) > 0.2);
   const releaseX = carving.position.x;
-  for (let i = 0; i < 60; i++) carving.step(neutral);
-  assert.ok(carving.position.x - releaseX < 0.9);
-  assert.ok(Math.abs(carving.lateralMps) < 0.01);
+  const releaseSpeed = carving.lateralMps;
+  carving.step(neutral);
+  assert.ok(carving.lateralMps > .8 * releaseSpeed);
+  for (let i = 1; i < 90; i++) carving.step(neutral);
+  assert.ok(carving.position.x - releaseX > 1 && carving.position.x - releaseX < 3.5);
+  assert.ok(Math.abs(carving.lateralMps) < .01);
   const noInput = new SurfSimulation(mavericks, 'free-surf', 1,
     new FixtureTrickController(), () => {});
   noInput.start();
   for (let i = 0; i < 30; i++) noInput.step(neutral);
-  assert.equal(coasting.speedMps, noInput.speedMps);
+  assert.ok(coasting.speedMps > noInput.speedMps + 1);
 });
 
 test('the opening Mavericks barrel allows a four-second ride and clean exit', () => {
@@ -164,7 +171,7 @@ test('the opening Mavericks barrel allows a four-second ride and clean exit', ()
   assert.equal(sim.metrics.wipeouts, 0);
 });
 
-test('A can carry the board through a full loop inside the Mavericks barrel', () => {
+test('the Mavericks wall carries the board across the roof, reverses and returns to the face', () => {
   const sim = new SurfSimulation(mavericks, 'free-surf', 1,
     new FixtureTrickController(), () => {});
   sim.start();
@@ -174,18 +181,25 @@ test('A can carry the board through a full loop inside the Mavericks barrel', ()
   assert.equal(sim.state, 'barrel');
   const initialY = sim.position.y;
   let highestY = initialY;
-  let hollowFrames = 0;
+  let upsideDownFrames = 0;
   for (let i = 0; i < 130; i++) {
     sim.step({ ...neutral, wallRide: -1 });
     highestY = Math.max(highestY, sim.position.y);
-    const riderX = sim.position.x - Math.sin(sim.wallRideAngle) * 0.85;
-    const riderY = sim.position.y + Math.cos(sim.wallRideAngle) * 0.85;
-    if (sim.wave.barrelAt(sim.alongM, riderX, riderY,
-      sim.simulationTimeS)?.inside) hollowFrames++;
+    if (!sim.wallRideActive) continue;
+    const q = sim.orientation;
+    const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
+    if (upY < -.7) upsideDownFrames++;
+    const floor = sim.wave.surfaceAt(sim.alongM, sim.position.x, sim.simulationTimeS).position;
+    let gap = Math.abs(sim.position.y - floor.y);
+    for (let j = 0; j <= 80; j++) {
+      const lip = sim.wave.crossSectionAt(sim.alongM, .78 + .22 * j / 80, sim.simulationTimeS);
+      gap = Math.min(gap, Math.hypot(sim.position.x - lip.x, sim.position.y - lip.y));
+    }
+    assert.ok(gap < .45, 'board is touching the water or the foot of the foaming lip');
   }
   assert.ok(sim.wallRideAngle >= Math.PI * 2);
   assert.ok(highestY > initialY + 2);
-  assert.ok(hollowFrames > 110);
+  assert.ok(upsideDownFrames >= 10);
   assert.equal(sim.metrics.wipeouts, 0);
   const peakAngle = sim.wallRideAngle;
   for (let i = 0; i < 30; i++) sim.step({ ...neutral, wallRide: 1 });
@@ -197,11 +211,12 @@ test('A can carry the board through a full loop inside the Mavericks barrel', ()
     sim.position.x, sim.simulationTimeS).position.y) < 0.05);
 });
 
-test('holding A automatically starts the Mavericks wall ride near the hollow', () => {
+test('holding Shift and A starts a deliberate Mavericks wall ride near the hollow', () => {
   const sim = new SurfSimulation(mavericks, 'free-surf', 1,
     new FixtureTrickController(), () => {});
   const input = new GameplayInput();
   sim.start();
+  input.press('Shift', true);
   input.press('a', true);
   for (let i = 0; i < 60 * 9; i++) {
     input.advance(1 / 60, true);

@@ -25,7 +25,7 @@ import { ChaseCamera } from './chaseCamera';
 import { GameplayInput } from './input';
 import { validateMap } from './map';
 import { SurfSimulation } from './simulation';
-import { SurferVisual, WaveVisual } from './visuals';
+import { createSurfSky, SurferVisual, WaveVisual } from './visuals';
 
 export interface SurfSessionOptions {
   mount: HTMLElement;
@@ -88,6 +88,8 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     renderer.domElement.remove();
     throw new Error(`Could not load the map environment: ${String(error)}`);
   }
+  const sky = createSurfSky(options.map.visual.skyColor);
+  scene.add(sky);
   const input = new GameplayInput();
   let settings = { ...options.settings };
   let paused = true;
@@ -144,14 +146,14 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     surfer.group.position.copy(rider);
     const q = simulation.orientation;
     surfer.group.quaternion.copy(previousRotation).slerp(currentRotation.copy(q), alpha);
-    if (simulation.state === 'surfing') {
+    if (simulation.state === 'surfing' || (simulation.state === 'barrel' && !simulation.wallRideActive)) {
       surfer.group.rotateZ(simulation.railAngle);
       surfer.group.rotateY(simulation.skidSide * simulation.skid * .56);
       if (simulation.landingPulse > 0) surfer.group.quaternion.slerp(contactRotation, simulation.landingPulse ** 2);
     }
     const heading = new Vector3(simulation.heading.x, 0, simulation.heading.z).normalize();
     const water = simulation.wave.surfaceAt(rider.z * simulation.wave.direction, rider.x, simulation.simulationTimeS);
-    const airHeight = Math.max(0, rider.y - water.position.y);
+    const airHeight = simulation.state === 'airborne' ? Math.max(0, rider.y - water.position.y) : 0;
     shadow.visible = simulation.state === 'airborne';
     if (shadow.visible) {
       surfaceNormal.copy(water.normal);
@@ -160,13 +162,14 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       shadow.scale.setScalar(1 + Math.min(airHeight,8) * .07);
       shadow.material.uniforms.strength.value = .46 / (1 + airHeight * .14);
     }
-    const tubeBlend = chase.update(simulation.wave, rider, heading, airHeight,
-      simulation.state === 'surfing' || simulation.state === 'barrel', simulation.simulationTimeS, frameDtS);
+    chase.update(simulation.wave, rider, heading, airHeight,
+      simulation.state === 'surfing' || simulation.state === 'barrel', simulation.simulationTimeS, frameDtS,
+      simulation.wallRideActive);
     camera.position.copy(chase.eye);
     camera.lookAt(chase.focus);
+    sky.position.copy(camera.position);
     const fov = settings.reducedMotion ? 65 :
-      63 + Math.min(9, simulation.speedMps * 0.25) + Math.min(5, airHeight * 0.3) +
-      tubeBlend * 3;
+      63 + Math.min(9, simulation.speedMps * 0.25) + Math.min(5, airHeight * 0.3) + chase.wallFraming * 5;
     if (Math.abs(camera.fov - fov) > 0.05) {
       camera.fov = fov;
       camera.updateProjectionMatrix();
@@ -295,6 +298,8 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       if (!resizeObserver) window.removeEventListener('resize', size);
       shadow.geometry.dispose();
       shadow.material.dispose();
+      sky.geometry.dispose();
+      sky.material.dispose();
       wake.dispose();
       environment.dispose();
       waveVisual.dispose();

@@ -1,4 +1,5 @@
 import {
+  BackSide,
   BufferGeometry,
   Color,
   ConeGeometry,
@@ -11,7 +12,7 @@ import {
   LineLoop,
   LineSegments,
   Mesh,
-  type ShaderMaterial,
+  ShaderMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Points,
@@ -19,6 +20,7 @@ import {
   Shape,
   type Scene,
   SphereGeometry,
+  Vector3,
   type Material,
 } from 'three';
 import type { GameSettings, RiderState } from '../shared/contracts';
@@ -29,6 +31,37 @@ import { createSprayTexture, createWaterNormalMap } from './waterTexture';
 import { penguinBody, penguinBill, penguinFlipper, penguinTail, plumage, webbedFoot } from './penguin';
 import { breakingFoam, breakingWater } from './breakingWater';
 
+export function createSurfSky(skyColor: string) {
+  const material = new ShaderMaterial({
+    side: BackSide, depthWrite: false, depthTest: false,
+    uniforms: { horizon: { value: new Color(skyColor) } },
+    vertexShader: `
+      varying vec3 direction;
+      void main() {
+        direction = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+      }`,
+    fragmentShader: `
+      uniform vec3 horizon;
+      varying vec3 direction;
+      void main() {
+        vec3 ray = normalize(direction);
+        float elevation = smoothstep(-.035, .75, ray.y);
+        vec3 sky = mix(horizon, horizon * vec3(.38, .64, .86), elevation);
+        float sunlight = max(0., dot(ray, normalize(vec3(-.42, .55, .68))));
+        sky += vec3(.20, .15, .09) * pow(sunlight, 18.) +
+          vec3(.82, .78, .65) * smoothstep(.99972, .99995, sunlight);
+        gl_FragColor = vec4(sky, 1.);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const sky = new Mesh(new SphereGeometry(1100, 32, 16), material);
+  sky.renderOrder = -10;
+  sky.frustumCulled = false;
+  return sky;
+}
+
 export class WaveVisual {
   readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
   readonly backMesh: Mesh<BufferGeometry, ShaderMaterial>;
@@ -37,6 +70,7 @@ export class WaveVisual {
   readonly impactFoam: Mesh<BufferGeometry, ShaderMaterial>;
   readonly curlSpray: Points;
   private readonly rows = 140;
+  private readonly sampleRows = new Float32Array(this.rows + 1);
   private readonly faceColumns = 28;
   private readonly lipColumns = 28;
   private readonly backColumns = 30;
@@ -102,7 +136,7 @@ export class WaveVisual {
   }
 
   private alongSamples(): Float32Array {
-    const samples = new Float32Array(this.rows + 1);
+    const samples = this.sampleRows;
     const length = this.wave.map.wave.rideLengthM;
     const peel = this.wave.peelPositionM;
     if (peel === null) {
@@ -160,8 +194,8 @@ export class WaveVisual {
         const curl = Math.max(0, (u - 0.78) / 0.22);
         const lipFoam = Math.pow(Math.max(0, (curl - 0.70) / 0.30), 1.1) * crestBreak;
         const closingFoam = (barrel?.foam ?? 0) * Math.max(0, (u - 0.66) / 0.34);
-        const insideShade = (barrel?.radiusM ?? 0) > 0.6 && u > 0.80 && u < 0.95 ?
-          0.56 + 0.18 * (u - 0.80) / 0.15 : 1;
+        const hollow = Math.min(1, (barrel?.radiusM ?? 0) / 1.4);
+        const insideShade = 1 - hollow * .38 * Math.sin(Math.PI * curl);
         const faceT = Math.min(1, u / 0.78);
         const faceShade = u < 0.78 ? 0.68 + 0.32 * faceT : 1;
         const faceGlow = u < 0.78 ? Math.pow(faceT, 3.5) * 0.16 : 0;
@@ -295,6 +329,8 @@ export class WaveVisual {
 }
 
 export class SurferVisual {
+  private readonly boardUp = new Vector3();
+  private readonly boardSide = new Vector3();
   readonly group = new Group();
   readonly boardColor: MeshStandardMaterial;
   private readonly body = new Group();
@@ -450,25 +486,21 @@ export class SurferVisual {
     const positions = this.sprayGeometry.getAttribute('position');
     const count = settings.quality === 'low' ? 20 : settings.quality === 'medium' ? 42 : 70;
     const active = state !== 'airborne' && sim.speedMps > 3;
+    this.boardUp.set(0, 1, 0).applyQuaternion(sim.orientation);
+    this.boardSide.set(1, 0, 0).applyQuaternion(sim.orientation);
     for (let i = 0; i < positions.count; i++) {
       if (!active || i >= count) {
         positions.setXYZ(i, 0, -1000, 0);
         continue;
       }
       const phase = ((sim.simulationTimeS * (1.8 + (i % 7) * 0.12) + i * 0.31) % 1);
-      if (state === 'barrel' && i >= count * 0.45) {
-        const alongAhead = sim.alongM + 1 + phase * 7;
-        const u = 0.82 + ((i * 7) % 17) / 17 * 0.17;
-        const lip = sim.wave.crossSectionAt(alongAhead, u, sim.simulationTimeS);
-        positions.setXYZ(i, lip.x + Math.sin(i * 12.7) * 0.08,
-          lip.y - 0.12 - phase * 0.3, lip.z);
-      } else {
-        const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
-        const rear = -sim.wave.direction * (0.2 + phase * (1.4 + sim.speedMps * 0.04));
-        positions.setXYZ(i, sim.position.x + spread * (1 + sim.skid * 2) - sim.lateralMps * phase * .2,
-          sim.position.y + 0.08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : 0.55),
-          sim.position.z + rear);
-      }
+      const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
+      const rear = .2 + phase * (1.4 + sim.speedMps * .04);
+      const side = spread * (1 + sim.skid * 2);
+      const lift = .08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : .55);
+      positions.setXYZ(i, sim.position.x + this.boardSide.x * side + this.boardUp.x * lift - sim.heading.x * rear,
+        sim.position.y + this.boardSide.y * side + this.boardUp.y * lift - sim.heading.y * rear,
+        sim.position.z + this.boardSide.z * side + this.boardUp.z * lift - sim.heading.z * rear);
     }
     positions.needsUpdate = true;
     this.boardColor.color.set(settings.boardColor);

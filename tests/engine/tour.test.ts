@@ -3,10 +3,10 @@ import test from 'node:test';
 import { Quaternion, Vector3 } from 'three';
 import { SurfSimulation } from '../../src/engine/simulation';
 import { createTrickController } from '../../src/engine/tricks';
-import { campaign, clearedLevel } from '../../src/maps/campaign';
-import { maps } from '../../src/maps';
+import { finishedTutorial, rideMode } from '../../src/maps/campaign';
+import { maps, MAP_ORDER } from '../../src/maps';
 import { createProgressStore } from '../../src/progress';
-import type { MapId, RunResult } from '../../src/shared/contracts';
+import type { RunResult } from '../../src/shared/contracts';
 
 test('contact alignment distinguishes a clean landing, skid and wipeout', () => {
   for (const [degrees,quality] of [[0,'clean'],[43,'sketchy'],[90,'wipeout']] as const) {
@@ -18,43 +18,33 @@ test('contact alignment distinguishes a clean landing, skid and wipeout', () => 
   }
 });
 
-// Exercise actual wave contact, scoring, timers, tricks and exit geometry.
-// Steer toward a line and issue jump inputs; the engine produces every result.
-function rideLevel(id:MapId, missExit=false):RunResult {
-  const results:RunResult[]=[];
-  const sim=new SurfSimulation(maps[id],'score-run',8,createTrickController(),e=>{
-    if(e.type==='run-ended') results.push(e.result);
+test('one zero-point tutorial wave unlocks every location and freeplay keeps rolling', () => {
+  const values = new Map<string,string>();
+  const storage = {getItem:(key:string)=>values.get(key)??null,
+    setItem:(key:string,value:string)=>{values.set(key,value);}, removeItem:(key:string)=>{values.delete(key);}};
+  const store = createProgressStore({storage});
+  const neutral = {steer:0, wallRide:0, jumpChargeS:null, trick:{spinAxis:0,flipAxis:0}} as const;
+  assert.equal(rideMode('mavericks',0),'score-run');
+  assert.equal(rideMode('pipeline',0),null);
+  const results: RunResult[] = [];
+  const tutorial = new SurfSimulation(maps.mavericks,'score-run',8,createTrickController(),e=>{
+    if (e.type==='run-ended') results.push(e.result);
   });
-  let airTime=0;
-  sim.start();
-  for(let tick=0; tick<7300 && !sim.ended; tick++) {
-    const targetFace = id==='nazare' ? (missExit?.80:.23) :
-      id==='pipeline' || id==='teahupoo' ? .79 : .52;
-    const error=sim.position.x/maps[id].wave.faceWidthM-targetFace;
-    const steer = Math.abs(error)>.018 ? Math.sign(error)*sim.wave.direction as -1|1 : 0;
-    const aerialLine = id==='jbay' || (id==='teahupoo' && sim.cleanExitS>=3.5);
-    const airborne=sim.state==='airborne';
-    airTime=airborne?airTime+1/60:0;
-    const spin=aerialLine && airTime>0 && airTime<1.18 ? 1 : 0;
-    const jump=(id==='mavericks' || aerialLine) && tick%130===0;
-    sim.step({steer:airborne?spin:steer,wallRide:0,jumpChargeS:jump?.6:null,trick:{spinAxis:spin,flipAxis:0}});
-  }
+  tutorial.start();
+  for (let i=0;i<3600 && !tutorial.ended;i++) tutorial.step(neutral);
   assert.equal(results.length,1);
-  return results[0];
-}
-
-test('all five goals are reachable in order and unlocks survive reload', () => {
-  const values=new Map<string,string>();
-  const storage={getItem:(k:string)=>values.get(k)??null,setItem:(k:string,v:string)=>{values.set(k,v);},removeItem:(k:string)=>{values.delete(k);}};
-  let store=createProgressStore({storage});
-  for(const [level,id] of campaign.entries()) {
-    const result=rideLevel(id);
-    assert.ok(clearedLevel(result),id);
-    store.recordResult(result);
-    store=createProgressStore({storage});
-    assert.equal(store.getSnapshot().levelsCleared,level+1);
+  assert.equal(results[0].score,0);
+  assert.ok(finishedTutorial(results[0]));
+  store.recordResult(results[0]);
+  assert.equal(finishedTutorial({...results[0],reason:'player-ended'}),false);
+  const saved = createProgressStore({storage}).getSnapshot();
+  for (const id of MAP_ORDER) {
+    assert.equal(rideMode(id,saved.levelsCleared),'free-surf');
+    const sim = new SurfSimulation(maps[id],'free-surf',8,createTrickController(),()=>{});
+    sim.start();
+    for(let i=0;i<60*125;i++) sim.step(neutral);
+    assert.equal(sim.remainingS,null);
+    assert.equal(sim.ended,false);
+    assert.equal(sim.finish()?.reason,'player-ended');
   }
-  const miss=rideLevel('nazare',true);
-  assert.equal(miss.reason,'missed-exit');
-  assert.equal(clearedLevel(miss),false);
 });
