@@ -96,7 +96,7 @@ test('a held W does not flip at takeoff, but a fresh air press does', () => {
   assert.equal(input.frame().trick.flipAxis, 0);
 });
 
-test('normal carving stays on the face and Shift engages the barrel wall', () => {
+test('the optional loop shortcut stays independent of the A/D axis and clears with input', () => {
   const input = new GameplayInput();
   input.press('a', true);
   assert.equal(input.frame().steer, -1);
@@ -183,7 +183,7 @@ test('the Mavericks wall carries the board across the roof, reverses and returns
   let highestY = initialY;
   let upsideDownFrames = 0;
   for (let i = 0; i < 130; i++) {
-    sim.step({ ...neutral, wallRide: -1 });
+    sim.step({ ...neutral, steer: -1 });
     highestY = Math.max(highestY, sim.position.y);
     if (!sim.wallRideActive) continue;
     const q = sim.orientation;
@@ -202,7 +202,7 @@ test('the Mavericks wall carries the board across the roof, reverses and returns
   assert.ok(upsideDownFrames >= 10);
   assert.equal(sim.metrics.wipeouts, 0);
   const peakAngle = sim.wallRideAngle;
-  for (let i = 0; i < 30; i++) sim.step({ ...neutral, wallRide: 1 });
+  for (let i = 0; i < 30; i++) sim.step({ ...neutral, steer: 1 });
   assert.ok(sim.wallRideAngle < peakAngle);
   for (let i = 0; i < 180 && sim.wallRideActive; i++) sim.step(neutral);
   assert.equal(sim.wallRideActive, false);
@@ -211,12 +211,11 @@ test('the Mavericks wall carries the board across the roof, reverses and returns
     sim.position.x, sim.simulationTimeS).position.y) < 0.05);
 });
 
-test('holding Shift and A starts a deliberate Mavericks wall ride near the hollow', () => {
+test('holding A from spawn rides a full Mavericks loop with one key', () => {
   const sim = new SurfSimulation(mavericks, 'free-surf', 1,
     new FixtureTrickController(), () => {});
   const input = new GameplayInput();
   sim.start();
-  input.press('Shift', true);
   input.press('a', true);
   for (let i = 0; i < 60 * 9; i++) {
     input.advance(1 / 60, true);

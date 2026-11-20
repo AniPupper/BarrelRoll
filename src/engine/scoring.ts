@@ -1,10 +1,11 @@
-import type { LandingReport, RunMetrics, TrickFamily } from '../shared/contracts';
+import type { LandingReport, RiderState, RunMetrics, TrickFamily } from '../shared/contracts';
 
 type ComboFamily = TrickFamily | 'barrel' | 'cutback';
 const REPETITION = [1, 0.7, 0.4];
 
 export class RuntimeScore {
-  score = 0;
+  private earned = 0;
+  get score(): number { return Math.floor(this.earned); }
   bestCombo = 0;
   pendingCombo = 0;
   multiplier = 1;
@@ -13,6 +14,15 @@ export class RuntimeScore {
   private lastActionS = -Infinity;
   private families = new Map<ComboFamily, number>();
   private creditedAirs = new Set<string>();
+
+  addRideTime(dtS: number, speedMps: number, state: RiderState, onWall: boolean, grabbing: boolean): void {
+    if (state === 'wipeout') return;
+    let pace = speedMps;
+    if (state === 'barrel') pace += onWall ? 65 : 30;
+    if (state === 'airborne') pace += grabbing ? 48 : 12;
+    if (this.pendingCombo) pace += 24 * this.multiplier;
+    this.earned += pace * dtS;
+  }
 
   private action(family: ComboFamily, base: number, nowS: number): number {
     if (base <= 0) return 0;
@@ -36,6 +46,7 @@ export class RuntimeScore {
     const flips = Math.max(0, report.completedFlips);
     let base = (qualifyingLaunch ? 100 : 0) + (spin / 180) * 200 + flips * 600;
     if (spin > 0 && flips > 0) base *= 1.25;
+    base += 200 * (report.completedGrabs ?? 0);
     base *= report.quality === 'sketchy' ? 0.5 : 1;
     this.action(report.family, base, nowS);
     return true;
@@ -60,7 +71,7 @@ export class RuntimeScore {
   bank(): number {
     const points = this.pendingCombo;
     if (points > 0) {
-      this.score += points;
+      this.earned += points;
       this.bestCombo = Math.max(this.bestCombo, points);
     }
     this.clearPending();
@@ -81,7 +92,7 @@ export class RuntimeScore {
   }
 
   reset(): void {
-    this.score = 0;
+    this.earned = 0;
     this.bestCombo = 0;
     this.creditedAirs.clear();
     this.clearPending();

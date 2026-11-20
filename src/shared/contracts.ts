@@ -105,10 +105,11 @@ export interface SurfSession {
 
 export type Vec3 = { x: number; y: number; z: number };
 export type Quat = { x: number; y: number; z: number; w: number };
-export type TrickFamily = 'straight-air' | 'spin' | 'flip' | 'cork';
+export type TrickFamily = 'straight-air' | 'grab' | 'spin' | 'flip' | 'cork';
 export type LandingQuality = 'clean' | 'sketchy' | 'wipeout';
 
 export interface TrickInput {
+  grab?: boolean;
   tucked?: boolean;
   rollAxis?: -1 | 0 | 1;
   spinAxis: -1 | 0 | 1;
@@ -118,6 +119,7 @@ export interface TrickInput {
 export interface TrickFrame {
   orientation: Quat;
   label: string;
+  grabSide?: -1 | 0 | 1;
 }
 
 export interface LandingReport {
@@ -127,6 +129,7 @@ export interface LandingReport {
   label: string;
   completedSpinDeg: number;
   completedFlips: number;
+  completedGrabs?: number;
   speedMultiplier: number;
   slipSide?: number;
 }

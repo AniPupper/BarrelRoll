@@ -12,12 +12,14 @@ import {
   LineBasicMaterial,
   LineLoop,
   LineSegments,
+  Matrix4,
   Mesh,
   ShaderMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Points,
   PointsMaterial,
+  Quaternion,
   Shape,
   type Scene,
   SphereGeometry,
@@ -30,7 +32,7 @@ import type { SurfSimulation } from './simulation';
 import type { WaveModel } from './wave';
 import { createSprayTexture, createWaterNormalMap } from './waterTexture';
 
-import { penguinBody, penguinBill, penguinFlipper, penguinTail, plumage, rockhopperCrest, shellPendant, webbedFoot } from './penguin';
+import { flipperTip, penguinBody, penguinBill, penguinFlipper, penguinTail, plumage, rockhopperCrest, shellPendant, webbedFoot } from './penguin';
 import { breakingFoam, breakingWater } from './breakingWater';
 
 export function createSurfSky(skyColor: string) {
@@ -333,6 +335,10 @@ export class WaveVisual {
 export class SurferVisual {
   private readonly boardUp = new Vector3();
   private readonly boardSide = new Vector3();
+  private readonly bodyInverse = new Matrix4();
+  private readonly railTarget = new Vector3();
+  private readonly grabRotation = new Quaternion();
+  private readonly flipperDirection = flipperTip.clone().normalize();
   readonly group = new Group();
   readonly boardColor: MeshStandardMaterial;
   private readonly body = new Group();
@@ -446,6 +452,7 @@ export class SurferVisual {
       this.body.add(this.part(new SphereGeometry(1,8,6), catchlight,
         [side*.178,1.491,.359],[.008,.008,.006]));
       const flipper = this.part(penguinFlipper(), charcoal, [side*.279,1.035,.022]);
+      flipper.name = side > 0 ? 'Left flipper' : 'Right flipper';
       this.flippers.push(flipper);
       this.body.add(flipper);
       const foot = this.part(webbedFoot(), feet, [side*.13,.205,side*.19+.025]);
@@ -491,10 +498,16 @@ export class SurferVisual {
 
   update(sim: SurfSimulation, settings: GameSettings): void {
     const state: RiderState = sim.state;
-    const compression = Math.min(.37, .09 * sim.jumpLoad + .16 * sim.landingPulse +
-      .18 * sim.airTuck + (state === 'barrel' ? .095 : 0));
+    const cover = (state === 'surfing' || state === 'barrel') ?
+      sim.wave.lipCoverageAt(sim.alongM, sim.position.x, sim.simulationTimeS) : 0;
+    const onWater = state === 'surfing' || state === 'barrel';
+    const stance = onWater ? sim.stance : 0;
+    const reach = Math.abs(sim.grabPose);
+    const hand = -Math.sign(sim.grabPose);
+    const compression = Math.min(.43, .09 * sim.jumpLoad + .16 * sim.landingPulse +
+      .18 * sim.airTuck + cover * .14 + Math.max(0, stance) * .19 + reach * .20);
     this.body.scale.set(1 + compression * .12, 1 - compression, 1 + compression * .1);
-    this.body.position.y = compression * .20;
+    this.body.position.set(hand * reach * .08, compression * .20 - reach * .12, reach * .04);
     const bank = Math.max(-1, Math.min(1, sim.lateralMps * sim.wave.direction / 7));
     const stance = sim.stance;
     this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55 + .15 * stance;
@@ -505,8 +518,18 @@ export class SurferVisual {
       .29 + Math.abs(bank) * .33 + sim.landingPulse * .25;
     for (let i=0; i<this.flippers.length; i++) {
       const side = i === 0 ? -1 : 1;
-      this.flippers[i].rotation.z = side * spread - bank * .23;
-      this.flippers[i].rotation.x = .12 + side * bank * .20;
+      const flipper = this.flippers[i];
+      flipper.rotation.set(.12 + side * bank * .20, 0, side * (spread + .23 * reach) - bank * .23);
+      flipper.scale.setScalar(1);
+      if (side === hand && reach > .001) {
+        // The rail is fixed to the board. Aim in shoulder space so contact
+        // stays put through a tuck, roll or spin in either direction.
+        this.railTarget.set(side * .385, .155, side * .18).applyMatrix4(this.bodyInverse).sub(flipper.position);
+        const length = this.railTarget.length();
+        this.grabRotation.setFromUnitVectors(this.flipperDirection, this.railTarget.divideScalar(length));
+        flipper.quaternion.slerp(this.grabRotation, reach);
+        flipper.scale.setScalar(1 + reach * (length / flipperTip.length() - 1));
+      }
     }
     const positions = this.sprayGeometry.getAttribute('position');
     const count = settings.quality === 'low' ? 20 : settings.quality === 'medium' ? 42 : 70;
