@@ -3,19 +3,24 @@ import {
   BufferGeometry,
   Color,
   ConeGeometry,
+  DodecahedronGeometry,
   CylinderGeometry,
   DirectionalLight,
   DoubleSide,
   Float32BufferAttribute,
   Fog,
   Group,
+  InstancedMesh,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  PlaneGeometry,
+  Object3D,
+  SphereGeometry,
   type Scene,
 } from 'three';
 import type { EnvironmentHandle, GameSettings, MapDefinition } from '../shared/contracts';
+import { createWaterNormalMap } from '../engine/waterTexture';
+import { createOceanSurface } from './oceanSurface';
 
 const zStart = 90;
 const zEnd = -490;
@@ -108,12 +113,9 @@ export function createPipelineEnvironment(
   const detail = new Group();
   const previousFog = scene.fog;
 
-  const oceanGeometry = new PlaneGeometry(1800, 1800);
-  const oceanMaterial = new MeshStandardMaterial({
-    color: '#13798a', roughness: 0.53, metalness: 0.08, side: DoubleSide,
-  });
-  const ocean = new Mesh(oceanGeometry, oceanMaterial);
-  ocean.rotation.x = -Math.PI / 2;
+  const oceanNormal = createWaterNormalMap();
+  oceanNormal.repeat.set(72, 72);
+  const ocean = createOceanSurface(1800, 1800, '#13798a', oceanNormal);
   ocean.position.y = -0.24;
   group.add(ocean);
 
@@ -163,6 +165,38 @@ export function createPipelineEnvironment(
     (i % 3 === 0 ? group : detail).add(tree);
   }
 
+  // Pebbles and dune plants add scale to the existing beach without entering the surf lane.
+  const transform = new Object3D();
+  const rockGeometry = new DodecahedronGeometry(1, 0);
+  const rockMaterial = new MeshStandardMaterial({ color: '#837e68', roughness: 1 });
+  const shoreRocks = new InstancedMesh(rockGeometry, rockMaterial, 38);
+  const plantGeometry = new SphereGeometry(1, 7, 5);
+  const plantMaterial = new MeshStandardMaterial({ color: '#5b7450', roughness: 1 });
+  const dunePlants = new InstancedMesh(plantGeometry, plantMaterial, 60);
+  const beachHeight = (z: number, t: number) =>
+    -0.08 + 2.6 * Math.pow(t, 1.5) + 0.08 * Math.sin(z * 0.09 + t * 6);
+  for (let i = 0; i < 38; i++) {
+    const z = 65 - i * 14.2 + 4.2 * Math.sin(i * 2.73);
+    const t = 0.16 + 0.14 * Math.abs(Math.sin(i * 2.13));
+    const size = 0.65 + 1.15 * Math.abs(Math.sin(i * 1.81));
+    transform.position.set(shoreX(z) - 92 * t, beachHeight(z, t) + size * 0.32, z);
+    transform.rotation.set(0, i * 1.34, 0);
+    transform.scale.set(size * 1.4, size * 0.52, size);
+    transform.updateMatrix();
+    shoreRocks.setMatrixAt(i, transform.matrix);
+  }
+  for (let i = 0; i < 60; i++) {
+    const z = 72 - i * 8.9 + 3.6 * Math.sin(i * 2.31);
+    const t = 0.22 + 0.22 * Math.abs(Math.sin(i * 1.57));
+    const size = 0.6 + 0.65 * Math.abs(Math.sin(i * 2.19));
+    transform.position.set(shoreX(z) - 92 * t, beachHeight(z, t) + size * 0.42, z);
+    transform.rotation.set(0, i * 0.87, 0);
+    transform.scale.set(size * 1.25, size * 0.65, size);
+    transform.updateMatrix();
+    dunePlants.setMatrixAt(i, transform.matrix);
+  }
+  detail.add(shoreRocks, dunePlants);
+
   // A small original beach lookout supplies a recognizable silhouette without
   // placing a gameplay obstacle in the surf corridor.
   const boxGeometry = new BoxGeometry(1, 1, 1);
@@ -210,6 +244,7 @@ export function createPipelineEnvironment(
     update(timeS) {
       if (disposed) return;
       shorelineFoam.material.opacity = 0.6 + 0.08 * Math.sin(timeS * 1.2);
+      oceanNormal.offset.set(timeS * 0.0017, -timeS * 0.0012);
     },
     setSettings,
     dispose() {
@@ -217,12 +252,14 @@ export function createPipelineEnvironment(
       disposed = true;
       scene.remove(group);
       scene.fog = previousFog;
-      oceanGeometry.dispose(); oceanMaterial.dispose();
+      ocean.geometry.dispose(); ocean.material.dispose(); oceanNormal.dispose();
       beach.geometry.dispose(); beach.material.dispose();
       ridge.geometry.dispose(); ridge.material.dispose();
       foamGeometry.dispose(); foamMaterial.dispose();
       trunkGeometry.dispose(); trunkMaterial.dispose();
       frondGeometry.dispose(); frondMaterial.dispose();
+      rockGeometry.dispose(); rockMaterial.dispose();
+      plantGeometry.dispose(); plantMaterial.dispose();
       boxGeometry.dispose(); woodMaterial.dispose(); cabinMaterial.dispose();
       roofGeometry.dispose(); roofMaterial.dispose();
     },
