@@ -1,7 +1,7 @@
 import {
-  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute,
-  Fog, Group, Mesh, MeshPhongMaterial, MeshStandardMaterial, PlaneGeometry,
-  SphereGeometry, Vector2, type Material,
+  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DodecahedronGeometry, DoubleSide,
+  Float32BufferAttribute, Fog, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D,
+  SphereGeometry, type Material,
 } from 'three';
 import { createWaterNormalMap } from '../engine/waterTexture';
 import { createOceanSurface } from './oceanSurface';
@@ -145,8 +145,6 @@ export const createEnvironment: EnvironmentFactory = (scene,map,settings) => {
         }
       });
       normal.dispose();
-      sunGlow.material.dispose();
-      glowTexture.dispose();
     },
   };
 };
