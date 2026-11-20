@@ -491,15 +491,18 @@ export class SurferVisual {
 
   update(sim: SurfSimulation, settings: GameSettings): void {
     const state: RiderState = sim.state;
-    const compression = Math.min(.37, .09 * sim.jumpLoad + .16 * sim.landingPulse +
-      .18 * sim.airTuck + (state === 'barrel' ? .095 : 0));
+    const cover = (state === 'surfing' || state === 'barrel') ?
+      sim.wave.lipCoverageAt(sim.alongM, sim.position.x, sim.simulationTimeS) : 0;
+    const onWater = state === 'surfing' || state === 'barrel';
+    const stance = onWater ? sim.stance : 0;
+    const compression = Math.min(.39, .09 * sim.jumpLoad + .16 * sim.landingPulse +
+      .18 * sim.airTuck + cover * .14 + Math.max(0, stance) * .19);
     this.body.scale.set(1 + compression * .12, 1 - compression, 1 + compression * .1);
     this.body.position.y = compression * .20;
     const bank = Math.max(-1, Math.min(1, sim.lateralMps * sim.wave.direction / 7));
     this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55 + .15 * stance;
     this.body.rotation.y = .23 + bank * .14;
     this.crest.rotation.x = -.09 * (Math.max(0, stance) + sim.airTuck);
-    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55;
     this.body.rotation.z = state === 'wipeout' ? .4 : -bank * .19;
     const spread = state === 'airborne' || sim.wallRideActive ? .90 - sim.airTuck * .6 :
       .29 + Math.abs(bank) * .33 + sim.landingPulse * .25;
