@@ -423,10 +423,15 @@ export class SurfSimulation {
     const railInput = -frame.steer * this.wave.direction;
     const grip = 1 - .52 * this.skid;
     const drift = this.skidSide * this.wave.direction * this.skid * 4.8;
-    // Feather the rail near the tube. Releasing it trims toward the pocket
-    // only if the rider has already chosen a nearby line. Steering wins immediately.
-    const trim = !railInput && line ? clamp((line.lineX - this.position.x) * 1.75, -2.6, 2.6) * assistance : 0;
-    const lateralTarget = railInput * carveSpeed * (1 - .48 * assistance) * grip + trim + drift;
+    let carve = railInput * carveSpeed * (1 - .48 * assistance) * grip;
+    if (line && railInput >= 0) {
+      // The uphill rail follows the pocket as the face steepens. Blend toward
+      // the line by velocity so a held key can settle without snapping the board.
+      const trim = clamp((line.lineX - this.position.x) * 2.2, -3.8, carveSpeed);
+      if (railInput === 0) carve = trim * assistance;
+      else carve += (Math.min(carve, trim) - carve) * line.sectionBlend;
+    }
+    const lateralTarget = carve + drift;
     const crossingRails = railInput * this.lateralMps < -1;
     const response = frame.steer === 0 ? 15 : crossingRails ? 12 : 9.5;
 
@@ -618,7 +623,7 @@ export class SurfSimulation {
     if (!this.started || this.ended) return;
     const actualDt = this.remainingS !== null ? Math.min(dtS, 120 - this.elapsedS) : dtS;
     if (actualDt <= 0) { this.finish('timer'); return; }
-    this.wave.setPeelPosition(this.alongM);
+    this.wave.setPeelPosition(this.alongM, this.position.x);
     this.previousPosition = { ...this.position };
     this.simulationTimeS += actualDt;
     this.elapsedS += actualDt;
@@ -656,7 +661,7 @@ export class SurfSimulation {
       }
       this.nextWave();
     }
-    this.wave.setPeelPosition(this.alongM);
+    this.wave.setPeelPosition(this.alongM, this.position.x);
     if (this.state === 'barrel') this.score.sustainBarrel(this.elapsedS);
     const banked = this.score.tick(this.elapsedS,
       this.state === 'surfing' && this.barrelSectionIndex === null);

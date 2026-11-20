@@ -23,7 +23,7 @@ Mavericks is the tutorial. Ride to the end of one wave to unlock untimed Freepla
 | Escape | Pause | Pause |
 | R | Retry after a run | Retry after a run |
 
-A steep ramp can also launch the board.
+At Mavericks, hold A to enter the barrel and press D to carve back out. A steep ramp can also launch the board.
 
 ## Develop locally
 
@@ -43,6 +43,6 @@ npm run build
 npm run preview
 ```
 
-`npm run build` creates the GitHub Pages build in `dist/` with a production base of `/BarrelRoll/`. It also packages the game and its images into `dist/BarrelRoll.html` and refreshes the downloadable `public/play.html`.
+`npm run build` writes the website to `dist/`. Serve that folder from any static host at a domain root or a project path such as `/BarrelRoll/`. It also packages the game and its images into `dist/BarrelRoll.html` and refreshes the downloadable `public/play.html`.
 
 The [product requirements](docs/PRD.md) describe the game scope, level goals, and team responsibilities.

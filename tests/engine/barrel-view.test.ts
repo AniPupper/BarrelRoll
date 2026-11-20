@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Raycaster, Vector3 } from 'three';
+import { PerspectiveCamera, Raycaster, Vector3 } from 'three';
 import { ChaseCamera } from '../../src/engine/chaseCamera';
 import { SurfSimulation } from '../../src/engine/simulation';
 import { createTrickController } from '../../src/engine/tricks';
@@ -35,35 +35,48 @@ test('each breaking wave gives the chase camera water overhead and daylight down
   }
 });
 
-test('the entry camera tracks the rider continuously without crossing the lip', () => {
-  for (const map of Object.values(maps)) {
-    const section = map.wave.barrelSections[0];
-    if (!section) continue;
-    const sim = new SurfSimulation(map, 'free-surf', 8, createTrickController(), () => {});
-    const visual = new WaveVisual(sim.wave, map.visual.waterColor, map.visual.foamColor);
-    const water = [visual.mesh, visual.lipMesh, visual.backMesh];
-    const camera = new ChaseCamera();
-    const start = section.start01 * map.wave.rideLengthM;
-    const targetX = sim.wave.joinX - section.radiusM;
-    sim.start();
-    for (let tick=0; sim.alongM<start+30; tick++) {
-      assert.ok(tick<4000);
-      const steer = sim.position.x<targetX-.38 ? -sim.wave.direction as -1|1 : 0;
-      sim.step({steer,wallRide:0,jumpChargeS:null,trick:{spinAxis:0,flipAxis:0}});
-      const previous = camera.eye.clone();
-      camera.update(sim.wave,sim.position,sim.heading,0,true,sim.simulationTimeS,1/60);
-      if (sim.alongM<start-20) continue;
-      assert.ok(Math.hypot(camera.eye.x-previous.x,camera.eye.y-previous.y)<.12,map.name);
-      if (tick%6) continue;
-      visual.update(sim.simulationTimeS);
-      for(const mesh of water) mesh.geometry.computeBoundingSphere();
-      const rider = new Vector3().copy(sim.position);
-      rider.y+=.85;
-      const direction = rider.sub(camera.eye);
-      const ray = new Raycaster(camera.eye,direction.clone().normalize(),.055,direction.length()-.12);
-      assert.equal(ray.intersectObjects(water).length,0,map.name);
+for (const approach of ['early', 'late'] as const) {
+  test(`the rider stays visible through the ${approach} carve into every breaking wave`, () => {
+    for (const map of Object.values(maps)) {
+      const section = map.wave.barrelSections[0];
+      if (!section) continue;
+      const sim = new SurfSimulation(map, 'free-surf', 8, createTrickController(), () => {});
+      const visual = new WaveVisual(sim.wave, map.visual.waterColor, map.visual.foamColor);
+      const water = [visual.mesh, visual.lipMesh, visual.backMesh];
+      const chase = new ChaseCamera();
+      const camera = new PerspectiveCamera(65, 16 / 9, .05, 1500);
+      const start = section.start01 * map.wave.rideLengthM;
+      const carveFrom = approach === 'late' ? start + 8 : 0;
+      const targetX = sim.wave.joinX - section.radiusM;
+      sim.start();
+
+      for (let tick = 0; sim.alongM < start + 55; tick++) {
+        assert.ok(tick < 4000);
+        const steer = sim.alongM >= carveFrom && sim.position.x < targetX - .38 ?
+          -sim.wave.direction as -1 | 1 : 0;
+        sim.step({ steer, wallRide: 0, jumpChargeS: null, trick: { spinAxis: 0, flipAxis: 0 } });
+        const previous = chase.eye.clone();
+        chase.update(sim.wave, sim.position, sim.heading, 0, true, sim.simulationTimeS, 1 / 60);
+        if (sim.alongM < start - 20) continue;
+        if (approach === 'early') {
+          assert.ok(Math.hypot(chase.eye.x - previous.x, chase.eye.y - previous.y) < .12, map.name);
+        }
+
+        camera.position.copy(chase.eye);
+        camera.lookAt(chase.focus);
+        camera.updateMatrixWorld();
+        const board = new Vector3().copy(sim.position).project(camera);
+        assert.ok(Math.abs(board.x) < .8 && Math.abs(board.y) < .68, `${map.name}: board framing`);
+        if (tick % 6) continue;
+        visual.update(sim.simulationTimeS);
+        for (const mesh of water) mesh.geometry.computeBoundingSphere();
+        const torso = new Vector3(0, .85, 0).applyQuaternion(sim.orientation).add(sim.position);
+        const direction = torso.sub(chase.eye);
+        const ray = new Raycaster(chase.eye, direction.clone().normalize(), .055, direction.length() - .12);
+        assert.equal(ray.intersectObjects(water).length, 0, `${map.name}: water obscured rider`);
+      }
+      assert.ok(sim.metrics.longestBarrelS > .65, map.name);
+      visual.dispose();
     }
-    assert.ok(sim.metrics.longestBarrelS>.65,map.name);
-    visual.dispose();
-  }
-});
+  });
+}

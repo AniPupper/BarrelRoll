@@ -275,7 +275,19 @@ html[data-reduced-motion='true'] .toggle-row__track::after { transition: none; }
 .run-head,.run-bottom {position:absolute;left:clamp(1rem,3vw,3rem);right:clamp(1rem,3vw,3rem);display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;pointer-events:none;text-shadow:0 2px 8px #051b27}
 .run-head {top:1.2rem}.run-bottom {bottom:1.25rem;align-items:flex-end}
 .run-head button {pointer-events:auto}
-.readout,.score,#callout:not(:empty),#clock:not(:empty) {background:#08242ee0;padding:.65rem .9rem;border-radius:.7rem}
+.readout,.score,#callout:not(:empty) {
+  padding: .62rem .95rem;
+  border: 1px solid #d5e9e335;
+  border-radius: .6rem;
+  background: linear-gradient(125deg,#08242ef2,#0c303ddb);
+  box-shadow: 0 .25rem 1rem #031d272b;
+}
+.readout { max-width: min(70vw, 30rem); }
+.score { min-width: 8.5rem; }
+.wave-progress { height: 3px; background: #bad8dc40; border-radius: 2px; overflow: hidden; }
+.wave-progress i { display:block; height:100%; background:#ffcf91; transform:scaleX(0); transform-origin:left; transition:transform .12s linear; }
+[data-reduced-motion="true"] .wave-progress i { transition: none; }
+#combo:empty { display: none; }
 .readout,.score {display:grid;gap:.25rem}.readout small,.score small,.run-stats dt {font-weight:700;text-transform:uppercase;letter-spacing:.11em;color:#b5d8d7;font-size:.72rem}
 #combo {color:#ffdc99}.score strong {font-size:1.5rem;font-variant-numeric:tabular-nums}
 #callout {max-width:min(32rem,58vw);line-height:1.45}

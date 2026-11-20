@@ -1,6 +1,6 @@
 // Package the same build for GitHub, the dev server, and opening directly from Finder.
 import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, dirname } from 'node:path/posix';
+import { basename } from 'node:path/posix';
 
 const dist = new URL('../dist/', import.meta.url);
 const assets = new URL('assets/', dist);
@@ -15,9 +15,10 @@ for (const name of await readdir(assets)) {
   if (!name.endsWith('.webp')) continue;
   const image = await readFile(new URL(name, assets));
   const dataUrl = 'data:image/webp;base64,' + image.toString('base64');
-  const assetUrl = dirname(script[1]) + '/' + name;
-  js = js.replaceAll(assetUrl, dataUrl);
-  css = css.replaceAll(assetUrl, dataUrl);
+  // Relative builds resolve script images against import.meta.url and
+  // stylesheet images against the CSS file. Inline both for the download.
+  js = js.replaceAll(JSON.stringify(name), JSON.stringify(dataUrl));
+  css = css.replaceAll('url(./' + name + ')', 'url(' + dataUrl + ')');
 }
 
 html = html.replace(script[0], '')
