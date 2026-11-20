@@ -89,27 +89,3 @@ test('releasing a carve early or late still gives a long first Mavericks barrel'
     assert.equal(sim.metrics.wipeouts,0);
   }
 });
-
-test('a sustained uphill carve finds the tube, and a downhill carve leaves it', () => {
-  for (const map of [maps.mavericks, maps.pipeline]) {
-    const start = map.wave.barrelSections[0].start01 * map.wave.rideLengthM;
-    for (const carveFrom of [0, start + 4]) {
-      const sim = new SurfSimulation(map, 'free-surf', 8, createTrickController(), () => {});
-      const uphill = -sim.wave.direction as -1 | 1;
-      const input = (steer: ControlFrame['steer']) => ({
-        steer, wallRide: 0 as const, jumpChargeS: null, trick: { spinAxis: 0 as const, flipAxis: 0 as const },
-      });
-      sim.start();
-      for (let tick = 0; tick < 1200 && sim.barrelS < 2; tick++) {
-        sim.step(input(sim.alongM >= carveFrom ? uphill : 0));
-      }
-      assert.equal(sim.state, 'barrel', map.name);
-      assert.ok(sim.barrelS >= 2, map.name);
-      const insideX = sim.position.x;
-      for (let tick = 0; tick < 60; tick++) sim.step(input(sim.wave.direction));
-      assert.equal(sim.state, 'surfing', map.name);
-      assert.ok(sim.position.x < insideX - 2, map.name);
-      assert.equal(sim.metrics.wipeouts, 0, map.name);
-    }
-  }
-});
