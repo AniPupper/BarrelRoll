@@ -65,6 +65,7 @@ export interface RunResult extends RunMetrics {
 export interface HudSnapshot extends RunMetrics {
   runId: string;
   state: RiderState;
+  wallRiding: boolean;
   score: number;
   pendingCombo: number;
   multiplier: number;
@@ -109,6 +110,7 @@ export type LandingQuality = 'clean' | 'sketchy' | 'wipeout';
 
 export interface TrickInput {
   tucked?: boolean;
+  rollAxis?: -1 | 0 | 1;
   spinAxis: -1 | 0 | 1;
   flipAxis: -1 | 0 | 1;
 }

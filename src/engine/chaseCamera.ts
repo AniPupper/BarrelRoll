@@ -8,17 +8,24 @@ export class ChaseCamera {
   private readonly desired = new Vector3();
   private readonly target = new Vector3();
   private mix = 0;
+  wallFraming = 0;
   private ready = false;
 
   reset() { this.ready = false; }
 
   update(wave: WaveModel, rider: Vec3, heading: Vec3, airHeight: number, grounded: boolean,
-    timeS: number, dt: number) {
+    timeS: number, dt: number, onWall = false) {
     const along = rider.z * wave.direction;
-    const line = wave.rideLineAt(along, rider.x);
-    const weight = grounded && line ? line.strength : 0;
+    const wallTarget = onWall ? 1 : 0;
+    this.wallFraming = this.ready ? MathUtils.damp(this.wallFraming, wallTarget, 7, dt) : wallTarget;
+    const line = grounded ? wave.rideLineAt(along, rider.x) : null;
+    // The breaking crest can reach the trailing camera first on a late carve.
+    const cover = line ? Math.max(wave.lipCoverageAt(along, rider.x, timeS),
+      wave.lipCoverageAt(along - 7.5, rider.x, timeS)) : 0;
+    const weight = Math.max(line ? line.strength * (.32 + .68 * cover) : 0, this.wallFraming);
     this.mix = this.ready ? MathUtils.damp(this.mix, weight, 6, dt) : weight;
-    const distance = MathUtils.lerp(8 + Math.min(4, airHeight * .22), 3.8, this.mix);
+    const tubeDistance = MathUtils.lerp(5.2, Math.min(10, 4 + (line?.radius ?? 2) * 1.65), this.wallFraming);
+    const distance = MathUtils.lerp(7.5 + Math.min(4, airHeight * .22), tubeDistance, this.mix);
     // Anchor the chase distance to the rider. A fast carve shouldn't sling the lens
     // to the far side of the breaking curtain or put the penguin out of frame.
     const z = rider.z - wave.direction * distance;
@@ -42,8 +49,27 @@ export class ChaseCamera {
       this.desired.x = MathUtils.lerp(outsideX, tubeX, this.mix);
       this.desired.y = MathUtils.lerp(this.desired.y, tubeY, this.mix);
       this.target.x = MathUtils.lerp(this.target.x, tubeX - .8, this.mix);
-      this.target.y = MathUtils.lerp(this.target.y, tubeY + .16, this.mix);
-      this.target.z += 2 * wave.direction * this.mix;
+      // Aim through the rider toward the opening. Using the roof height as
+      // the look target tilts the view upward just as the lip wraps over us.
+      const lookAhead = 5 + 2 * this.mix;
+      const riderAim = rider.y + 1.08;
+      const tubeAim = riderAim + (riderAim - this.desired.y) * lookAhead / distance;
+      this.target.y = MathUtils.lerp(this.target.y, tubeAim, this.mix);
+      this.target.z = rider.z + wave.direction * lookAhead;
+      // Keep a level view down the hollow as the rider crosses the ceiling.
+      // Tracking the board at full strength here pitches the camera into the lip.
+      if (this.wallFraming > .001) {
+        const center = wave.tubeCameraAt(along, timeS);
+        if (center) {
+          const lens = pocket ?? center;
+          this.desired.x = MathUtils.lerp(this.desired.x, lens.x, this.wallFraming);
+          this.desired.y = MathUtils.lerp(this.desired.y, lens.y, this.wallFraming);
+          const aimX = MathUtils.lerp(center.x, rider.x, .20);
+          const aimY = MathUtils.lerp(center.y, rider.y, .20);
+          this.target.x = MathUtils.lerp(this.target.x, aimX + (aimX - lens.x) * lookAhead / distance, this.wallFraming);
+          this.target.y = MathUtils.lerp(this.target.y, aimY + (aimY - lens.y) * lookAhead / distance, this.wallFraming);
+        }
+      }
     }
 
     if (this.ready) {

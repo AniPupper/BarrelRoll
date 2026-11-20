@@ -3,15 +3,18 @@ import type { TrickController, LandingReport } from '../shared/contracts';
 
 export function createTrickController(): TrickController {
   const base = new Quaternion(), orientation = new Quaternion();
-  const yaw = new Quaternion(), pitch = new Quaternion();
-  const up = new Vector3(0, 1, 0), across = new Vector3(1, 0, 0);
+  const yaw = new Quaternion(), pitch = new Quaternion(), bank = new Quaternion();
+  const up = new Vector3(0, 1, 0), across = new Vector3(1, 0, 0), along = new Vector3(0, 0, 1);
   let airId = '', spin = 0, flip = 0, spinRate = 0, flipRate = 0;
+  let roll = 0, rollRate = 0;
   let loadedRail = 0;
   const units = (angle: number, unit: number) => Math.floor((Math.abs(angle) + 0.00001) / unit);
   const figures = () => {
     const turns = units(spin, 180) * 180, flips = units(flip, 360);
     const rotation = flip > 0 ? 'frontflip' : 'backflip';
-    return [turns ? String(turns) : '', flips ? (flips > 1 ? flips + '× ' : '') + rotation : '']
+    const rolls = units(roll, 360);
+    return [turns ? String(turns) : '', flips ? (flips > 1 ? flips + '× ' : '') + rotation : '',
+      rolls ? (rolls > 1 ? rolls + '× ' : '') + 'side roll' : '']
       .filter(Boolean).join(' + ') || 'Straight air';
   };
   // A released input damps angular velocity and gently finishes a nearly aligned rotation.
@@ -26,7 +29,7 @@ export function createTrickController(): TrickController {
       loadedRail = start.loadedRail ?? 0;
       base.copy(start.orientation);
       orientation.copy(base);
-      spin = flip = spinRate = flipRate = 0;
+      spin = flip = roll = spinRate = flipRate = rollRate = 0;
     },
     step(input, dt) {
       // A charged rail carries into the first spin if the rider follows that turn.
@@ -35,12 +38,16 @@ export function createTrickController(): TrickController {
       const rotationScale = input.tucked ? 1.42 : 1;
       spinRate = MathUtils.damp(spinRate, input.spinAxis * 650 * rotationScale, input.spinAxis ? 12 : 19, dt);
       flipRate = MathUtils.damp(flipRate, input.flipAxis * 510 * rotationScale, input.flipAxis ? 11 : 19, dt);
+      rollRate = MathUtils.damp(rollRate, (input.rollAxis ?? 0) * 515 * rotationScale, input.rollAxis ? 11 : 19, dt);
       spin += spinRate * dt;
       flip += flipRate * dt;
+      roll += rollRate * dt;
       if (!input.spinAxis) spin = settle(spin, 180, dt);
       if (!input.flipAxis) flip = settle(flip, 360, dt);
+      if (!input.rollAxis) roll = settle(roll, 360, dt);
       orientation.copy(base).multiply(yaw.setFromAxisAngle(up, MathUtils.degToRad(spin)))
-        .multiply(pitch.setFromAxisAngle(across, MathUtils.degToRad(flip)));
+        .multiply(pitch.setFromAxisAngle(across, MathUtils.degToRad(flip)))
+        .multiply(bank.setFromAxisAngle(along, MathUtils.degToRad(roll)));
       return {orientation, label: figures()};
     },
     land(contact): LandingReport {
@@ -54,7 +61,7 @@ export function createTrickController(): TrickController {
       const side = new Vector3().crossVectors(normal, direction).normalize();
       const heading = MathUtils.radToDeg(Math.acos(Math.min(1, Math.abs(board.dot(direction)))));
       const quality = tilt <= 25 && heading <= 30 ? 'clean' : tilt <= 55 && heading <= 70 ? 'sketchy' : 'wipeout';
-      const completedSpinDeg = units(spin,180)*180, completedFlips = units(flip,360);
+      const completedSpinDeg = units(spin,180)*180, completedFlips = units(flip,360) + units(roll,360);
       const id = airId;
       airId = '';
       return {airId:id, quality, slipSide:board.dot(side), completedSpinDeg, completedFlips, label:figures(),

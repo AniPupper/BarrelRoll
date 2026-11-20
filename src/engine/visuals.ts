@@ -1,4 +1,5 @@
 import {
+  BackSide,
   BufferGeometry,
   Color,
   ConeGeometry,
@@ -11,7 +12,7 @@ import {
   LineLoop,
   LineSegments,
   Mesh,
-  type ShaderMaterial,
+  ShaderMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Points,
@@ -19,6 +20,7 @@ import {
   Shape,
   type Scene,
   SphereGeometry,
+  Vector3,
   type Material,
 } from 'three';
 import type { GameSettings, RiderState } from '../shared/contracts';
@@ -26,7 +28,39 @@ import type { SurfSimulation } from './simulation';
 import type { WaveModel } from './wave';
 import { createSprayTexture, createWaterNormalMap } from './waterTexture';
 
+import { penguinBody, penguinBill, penguinFlipper, penguinTail, plumage, webbedFoot } from './penguin';
 import { breakingFoam, breakingWater } from './breakingWater';
+
+export function createSurfSky(skyColor: string) {
+  const material = new ShaderMaterial({
+    side: BackSide, depthWrite: false, depthTest: false,
+    uniforms: { horizon: { value: new Color(skyColor) } },
+    vertexShader: `
+      varying vec3 direction;
+      void main() {
+        direction = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+      }`,
+    fragmentShader: `
+      uniform vec3 horizon;
+      varying vec3 direction;
+      void main() {
+        vec3 ray = normalize(direction);
+        float elevation = smoothstep(-.035, .75, ray.y);
+        vec3 sky = mix(horizon, horizon * vec3(.38, .64, .86), elevation);
+        float sunlight = max(0., dot(ray, normalize(vec3(-.42, .55, .68))));
+        sky += vec3(.20, .15, .09) * pow(sunlight, 18.) +
+          vec3(.82, .78, .65) * smoothstep(.99972, .99995, sunlight);
+        gl_FragColor = vec4(sky, 1.);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const sky = new Mesh(new SphereGeometry(1100, 32, 16), material);
+  sky.renderOrder = -10;
+  sky.frustumCulled = false;
+  return sky;
+}
 
 export class WaveVisual {
   readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
@@ -36,6 +70,7 @@ export class WaveVisual {
   readonly impactFoam: Mesh<BufferGeometry, ShaderMaterial>;
   readonly curlSpray: Points;
   private readonly rows = 140;
+  private readonly sampleRows = new Float32Array(this.rows + 1);
   private readonly faceColumns = 28;
   private readonly lipColumns = 28;
   private readonly backColumns = 30;
@@ -101,7 +136,7 @@ export class WaveVisual {
   }
 
   private alongSamples(): Float32Array {
-    const samples = new Float32Array(this.rows + 1);
+    const samples = this.sampleRows;
     const length = this.wave.map.wave.rideLengthM;
     const peel = this.wave.peelPositionM;
     if (peel === null) {
@@ -159,8 +194,8 @@ export class WaveVisual {
         const curl = Math.max(0, (u - 0.78) / 0.22);
         const lipFoam = Math.pow(Math.max(0, (curl - 0.70) / 0.30), 1.1) * crestBreak;
         const closingFoam = (barrel?.foam ?? 0) * Math.max(0, (u - 0.66) / 0.34);
-        const insideShade = (barrel?.radiusM ?? 0) > 0.6 && u > 0.80 && u < 0.95 ?
-          0.56 + 0.18 * (u - 0.80) / 0.15 : 1;
+        const hollow = Math.min(1, (barrel?.radiusM ?? 0) / 1.4);
+        const insideShade = 1 - hollow * .38 * Math.sin(Math.PI * curl);
         const faceT = Math.min(1, u / 0.78);
         const faceShade = u < 0.78 ? 0.68 + 0.32 * faceT : 1;
         const faceGlow = u < 0.78 ? Math.pow(faceT, 3.5) * 0.16 : 0;
@@ -294,9 +329,12 @@ export class WaveVisual {
 }
 
 export class SurferVisual {
+  private readonly boardUp = new Vector3();
+  private readonly boardSide = new Vector3();
   readonly group = new Group();
   readonly boardColor: MeshStandardMaterial;
   private readonly body = new Group();
+  private readonly featherMap = plumage();
   private readonly flippers: Mesh[] = [];
   private readonly materials: Material[] = [];
   private readonly geometries: BufferGeometry[] = [];
@@ -367,41 +405,34 @@ export class SurferVisual {
       this.group.add(fin);
     }
 
-    const feathers = this.material('#17242b', 0.9);
-    const belly = this.material('#f3f5ed', 0.88);
-    const beakAndFeet = this.material('#e3a048', 0.65);
-    const eyes = this.material('#111c23', 0.35);
-    this.body.add(this.part(new SphereGeometry(1, 22, 16), feathers,
-      [0, 0.82, 0], [0.34, 0.56, 0.31]));
-    this.body.add(this.part(new SphereGeometry(1, 18, 14), belly,
-      [0, 0.84, 0.265], [0.25, 0.42, 0.085]));
-    this.body.add(this.part(new SphereGeometry(1, 20, 16), feathers,
-      [0, 1.46, 0.02], [0.27, 0.28, 0.27]));
-    this.body.add(this.part(new SphereGeometry(1, 14, 10), belly,
-      [0, 1.64, -0.07], [0.23, 0.065, 0.17]));
-    for (const side of [-1, 1]) {
-      this.body.add(this.part(new SphereGeometry(1, 12, 10), belly,
-        [side * 0.29, 0.84, -0.02], [0.055, 0.30, 0.16]));
-      const eyePatch = this.part(new SphereGeometry(1, 12, 10), belly,
-        [side * 0.125, 1.49, 0.235], [0.095, 0.12, 0.045]);
-      this.body.add(eyePatch);
-      this.body.add(this.part(new SphereGeometry(1, 10, 8), eyes,
-        [side * 0.125, 1.49, 0.278], [0.035, 0.05, 0.02]));
-      const flipper = this.part(new SphereGeometry(1, 14, 10), feathers,
-        [side * 0.39, 0.92, 0.015], [0.13, 0.36, 0.13]);
+    const coat = this.material('#ffffff', .63);
+    coat.map = this.featherMap;
+    this.body.add(this.part(penguinBody(), coat, [0,0,0]));
+    const charcoal = this.material('#263137', .62);
+    const eyes = this.material('#161715', .18);
+    const iris = this.material('#674f35', .28);
+    const catchlight = this.material('#f3eee2', .22);
+    const feet = this.material('#ae7048', .7);
+    const bill = this.material('#ffffff', .46);
+    bill.vertexColors = true;
+    this.body.add(this.part(penguinBill(), bill, [0,1.37,.308]));
+    for (const side of [-1,1]) {
+      this.body.add(this.part(new SphereGeometry(1,12,8), iris,
+        [side*.165,1.425,.246],[.028,.031,.031]));
+      this.body.add(this.part(new SphereGeometry(1,12,8), eyes,
+        [side*.181,1.426,.252],[.020,.024,.024]));
+      this.body.add(this.part(new SphereGeometry(1,8,6), catchlight,
+        [side*.198,1.435,.260],[.006,.006,.006]));
+      const flipper = this.part(penguinFlipper(), charcoal, [side*.292,1.00,.015]);
       this.flippers.push(flipper);
       this.body.add(flipper);
-      this.body.add(this.part(new SphereGeometry(1, 12, 8), beakAndFeet,
-        [side * 0.16, 0.22, side < 0 ? 0.27 : -0.19], [0.15, 0.055, 0.23]));
+      const foot = this.part(webbedFoot(), feet, [side*.15,.205,side*.12+.015]);
+      foot.rotation.y = side*.20;
+      this.group.add(foot);
+      this.group.add(this.part(new SphereGeometry(1,12,8), feet,
+        [side*.136,.249,side*.08-.045],[.049,.072,.050]));
     }
-    const beak = this.part(new ConeGeometry(0.105, 0.25, 5), beakAndFeet,
-      [0, 1.34, 0.31]);
-    beak.rotation.x = Math.PI / 2;
-    this.body.add(beak);
-    const tail = this.part(new ConeGeometry(0.12, 0.28, 5), feathers,
-      [0, 0.47, -0.33]);
-    tail.rotation.x = -Math.PI / 2;
-    this.body.add(tail);
+    this.body.add(this.part(penguinTail(), charcoal, [0,.27,-.20]));
     this.group.add(this.body);
 
     const count = 70;
@@ -438,40 +469,38 @@ export class SurferVisual {
 
   update(sim: SurfSimulation, settings: GameSettings): void {
     const state: RiderState = sim.state;
-    const crouch = state === 'barrel' ? 0.25 : state === 'airborne' ? -0.08 :
-      state === 'wipeout' ? 0.6 : Math.max(0, (sim.speedMps - 14) * 0.012);
-    this.body.position.y = -crouch * 0.14 - sim.jumpLoad * .18 - sim.landingPulse * .19 - sim.airTuck * .24;
-    this.body.scale.y = 1 - .10 * sim.jumpLoad - .09 * sim.landingPulse - (state === 'barrel' ? .05 : 0) - .21 * sim.airTuck;
-    this.body.rotation.x = state === 'wipeout' ? 0.75 : state === 'airborne' ? -0.1 :
-      Math.max(-0.18, Math.min(0.12, sim.lateralMps * 0.02));
-    this.body.rotation.z = state === 'wipeout' ? 0.4 : state === 'airborne' ? 0 :
-      Math.max(-0.22, Math.min(0.22, -sim.lateralMps * sim.wave.direction * 0.028));
-    const flipperLift = state === 'airborne' || sim.wallRideActive ? .48 - .64 * sim.airTuck :
-      state === 'barrel' ? 0.22 : 0.12;
-    this.flippers[0].rotation.z = 0.35 + flipperLift;
-    this.flippers[1].rotation.z = -0.35 - flipperLift;
+    const compression = Math.min(.37, .09 * sim.jumpLoad + .16 * sim.landingPulse +
+      .18 * sim.airTuck + (state === 'barrel' ? .095 : 0));
+    this.body.scale.set(1 + compression * .12, 1 - compression, 1 + compression * .1);
+    this.body.position.y = compression * .20;
+    const bank = Math.max(-1, Math.min(1, sim.lateralMps * sim.wave.direction / 7));
+    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55;
+    this.body.rotation.z = state === 'wipeout' ? .4 : -bank * .19;
+    const spread = state === 'airborne' || sim.wallRideActive ? .90 - sim.airTuck * .6 :
+      .29 + Math.abs(bank) * .33 + sim.landingPulse * .25;
+    for (let i=0; i<this.flippers.length; i++) {
+      const side = i === 0 ? -1 : 1;
+      this.flippers[i].rotation.z = side * spread - bank * .23;
+      this.flippers[i].rotation.x = .12 + side * bank * .20;
+    }
     const positions = this.sprayGeometry.getAttribute('position');
     const count = settings.quality === 'low' ? 20 : settings.quality === 'medium' ? 42 : 70;
     const active = state !== 'airborne' && sim.speedMps > 3;
+    this.boardUp.set(0, 1, 0).applyQuaternion(sim.orientation);
+    this.boardSide.set(1, 0, 0).applyQuaternion(sim.orientation);
     for (let i = 0; i < positions.count; i++) {
       if (!active || i >= count) {
         positions.setXYZ(i, 0, -1000, 0);
         continue;
       }
       const phase = ((sim.simulationTimeS * (1.8 + (i % 7) * 0.12) + i * 0.31) % 1);
-      if (state === 'barrel' && i >= count * 0.45) {
-        const alongAhead = sim.alongM + 1 + phase * 7;
-        const u = 0.82 + ((i * 7) % 17) / 17 * 0.17;
-        const lip = sim.wave.crossSectionAt(alongAhead, u, sim.simulationTimeS);
-        positions.setXYZ(i, lip.x + Math.sin(i * 12.7) * 0.08,
-          lip.y - 0.12 - phase * 0.3, lip.z);
-      } else {
-        const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
-        const rear = -sim.wave.direction * (0.2 + phase * (1.4 + sim.speedMps * 0.04));
-        positions.setXYZ(i, sim.position.x + spread * (1 + sim.skid * 2) - sim.lateralMps * phase * .2,
-          sim.position.y + 0.08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : 0.55),
-          sim.position.z + rear);
-      }
+      const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
+      const rear = .2 + phase * (1.4 + sim.speedMps * .04);
+      const side = spread * (1 + sim.skid * 2);
+      const lift = .08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : .55);
+      positions.setXYZ(i, sim.position.x + this.boardSide.x * side + this.boardUp.x * lift - sim.heading.x * rear,
+        sim.position.y + this.boardSide.y * side + this.boardUp.y * lift - sim.heading.y * rear,
+        sim.position.z + this.boardSide.z * side + this.boardUp.z * lift - sim.heading.z * rear);
     }
     positions.needsUpdate = true;
     this.boardColor.color.set(settings.boardColor);
@@ -483,5 +512,6 @@ export class SurferVisual {
     this.sprayGeometry.dispose();
     this.sprayMaterial.dispose();
     this.sprayTexture.dispose();
+    this.featherMap.dispose();
   }
 }

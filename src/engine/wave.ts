@@ -1,4 +1,4 @@
-import type { MapDefinition, Vec3 } from '../shared/contracts';
+import type { MapDefinition, Vec3, WaveSection } from '../shared/contracts';
 
 const clamp = (value: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, value));
 const smoothstep = (value: number) => {
@@ -24,11 +24,16 @@ export class WaveModel {
   readonly phase: number;
   private enteredAtS: Array<number | null>;
   private peelAlongM: number | null = null;
+  private riderAlongM = 0;
   private cachedAlong = NaN;
   private cachedTime = NaN;
   private cachedPeel: number | null = null;
   private cachedHeight = 0;
   private cachedLipLift = 0;
+  // The face, lip, foam and camera all sample the same cross-section.
+  private arc = { along: NaN, time: NaN, peel: null as number | null,
+    radius: 0, joinY: 0, reach: 0, drop: 0, angle: 0 };
+  private readonly wallTrack = Array.from({ length: 35 }, () => ({ x: 0, y: 0, distance: 0, slope: 0, progress: 0 }));
 
   constructor(map: MapDefinition, phase = 0) {
     this.map = map;
@@ -40,11 +45,27 @@ export class WaveModel {
 
   resetWave(): void {
     this.enteredAtS.fill(null);
+    this.arc.along = NaN;
     this.peelAlongM = null;
+    this.riderAlongM = 0;
   }
 
-  setPeelPosition(alongM: number): void {
-    this.peelAlongM = clamp(alongM, 0, this.map.wave.rideLengthM);
+  setPeelPosition(alongM: number, x?: number): void {
+    // A low line runs out onto the shoulder ahead of the breaking crest.
+    // Carving back up lets the lip catch the board from behind.
+    let lag = 0;
+    if (x !== undefined) {
+      const line = this.rideLineAt(alongM, x);
+      if (line) lag = 12 * line.sectionBlend *
+        smoothstep((line.lineX - x - .15 * line.radius) / (1.15 * line.radius));
+      // Limit how fast the breaking point gains on a rider cutting back.
+      // Otherwise a hard turn can sweep the whole curtain through the lens in a frame.
+      if (this.peelAlongM !== null && alongM >= this.riderAlongM) {
+        lag = Math.max(lag, this.riderAlongM - this.peelAlongM - .55 * (alongM - this.riderAlongM));
+      }
+    }
+    this.riderAlongM = alongM;
+    this.peelAlongM = clamp(alongM - lag, 0, this.map.wave.rideLengthM);
   }
 
   get peelPositionM(): number | null {
@@ -82,7 +103,8 @@ export class WaveModel {
       Math.min(14, (section.end01 - section.start01) * length * .22));
     const catchWidth = Math.max(section.radiusM * 1.55, this.map.wave.faceWidthM * .24);
     const proximity = 1 - smoothstep((Math.abs(lineX - x) - catchWidth * .40) / catchWidth);
-    return { lineX, radius:section.radiusM, strength:entry * exit * proximity };
+    const sectionBlend = entry * exit;
+    return { lineX, radius: section.radiusM, sectionBlend, strength: sectionBlend * proximity };
   }
 
   private peelingPeak(alongM: number, aheadStartM: number, aheadFadeM: number): number {
@@ -157,10 +179,16 @@ export class WaveModel {
     };
   }
 
-  private sectionAt(alongM: number): number {
+  private approachLength(section: WaveSection): number {
+    return Math.min(this.map.wave.peelSpeedMps, (section.end01 - section.start01) *
+      this.map.wave.rideLengthM * .20);
+  }
+
+  private sectionAt(alongM: number, forming = false): number {
     const along01 = this.along01(alongM);
     return this.map.wave.barrelSections.findIndex(
-      ({ start01, end01 }) => along01 >= start01 && along01 <= end01,
+      section => along01 <= section.end01 && (along01 >= section.start01 ||
+        (forming && alongM >= section.start01 * this.map.wave.rideLengthM - this.approachLength(section))),
     );
   }
 
@@ -177,7 +205,10 @@ export class WaveModel {
   }
 
   enterSection(index: number, timeS: number): void {
-    if (this.enteredAtS[index] === null) this.enteredAtS[index] = timeS;
+    if (this.enteredAtS[index] === null) {
+      this.enteredAtS[index] = timeS;
+      this.arc.along = NaN;
+    }
   }
 
   exitTaper01(index: number): number {
@@ -186,29 +217,24 @@ export class WaveModel {
   }
 
   private curlRadius(alongM: number, timeS: number, forming = false): number {
-    const index = this.sectionAt(alongM);
+    const index = this.sectionAt(alongM, forming);
     if (index < 0) return 0.12;
     const section = this.map.wave.barrelSections[index];
     const width = section.end01 - section.start01;
     const entryFade = Math.min(0.025, width * 0.18);
     const exitFade = this.exitTaper01(index);
     const along = this.along01(alongM);
-    const edge = smoothstep((along - section.start01) / entryFade) *
+    const lead = this.approachLength(section) / this.map.wave.rideLengthM;
+    const edge = smoothstep((along - section.start01 + lead) / (entryFade + lead * .35)) *
       smoothstep((section.end01 - along) / exitFade);
     const rollingShape = 0.92 + 0.08 * Math.sin(alongM * 0.09 - timeS * 0.45 + this.phase);
-    return 0.12 + section.radiusM * edge * this.peelingPeak(alongM, forming ? 3.4 : .45, 3.3) *
+    return 0.12 + section.radiusM * edge * this.peelingPeak(alongM, forming ? 4.8 : .45, forming ? 5.2 : 3.3) *
       this.openFraction(index, timeS) * rollingShape;
   }
 
-  crossSectionAt(alongM: number, u: number, timeS: number, outer = false): Vec3 {
-    const z = this.direction * alongM;
-    if (u < 0.78 || (u === .78 && !outer)) {
-      const x = this.joinX * clamp(u / 0.78, 0, 1);
-      return { x, y: this.faceHeight(x, alongM, timeS), z };
-    }
-    // A rising crest pitches into an arched lip whose tip nearly meets the
-    // face. The hollow underneath remains open all the way down the wave.
-    const curl = clamp((u - 0.78) / 0.22, 0, 1);
+  private lipArcAt(alongM: number, timeS: number) {
+    const arc = this.arc;
+    if (arc.along === alongM && arc.time === timeS && arc.peel === this.peelAlongM) return arc;
     const radius = this.curlRadius(alongM, timeS, true);
     const joinY = this.faceHeight(this.joinX, alongM, timeS);
     const crash = this.whitewaterAt(alongM);
@@ -217,20 +243,36 @@ export class WaveModel {
     const tipY = this.faceHeight(tipX, alongM, timeS) + Math.min(.42, radius * .2);
     // Ahead of the surfer only the first part of the arc has folded. The
     // free edge traces the arch as it pitches, leaving the daylight open.
-    const section = this.map.wave.barrelSections[this.sectionAt(alongM)];
-    const entryLength = section ? Math.min(this.map.wave.peelSpeedMps * 1.55,
-      (section.end01 - section.start01) * this.map.wave.rideLengthM * .23) : 0;
-    // Let the entering rider pass under an extended lip before its free
-    // edge falls. A fully folded but tiny tube grew sideways through the lens.
+    const section = this.map.wave.barrelSections[this.sectionAt(alongM, true)];
+    // The crest already has breadth as the rider approaches. Its tip sweeps
+    // overhead before descending on the open-water side of the board.
+    const lead = section ? this.approachLength(section) : 0;
     const entryOpen = section ? 1 - smoothstep((alongM - section.start01 *
-      this.map.wave.rideLengthM) / entryLength) : 0;
+      this.map.wave.rideLengthM + lead) / (2.3 * lead)) : 0;
     const unfurl = this.peelAlongM === null ? 0 :
-      Math.max(entryOpen, smoothstep((this.distanceFromPeak(alongM) + .55) / 4));
-    const angle = Math.PI * curl * (1 - .89 * unfurl);
+      Math.max(entryOpen, smoothstep((this.distanceFromPeak(alongM) + .8) / 7.4));
+    arc.along = alongM;
+    arc.time = timeS;
+    arc.peel = this.peelAlongM;
+    arc.radius = radius;
+    arc.joinY = joinY;
+    arc.reach = tipX - this.joinX;
+    arc.drop = tipY - joinY;
+    arc.angle = Math.PI * (1 - .89 * unfurl);
+    return arc;
+  }
+
+  crossSectionAt(alongM: number, u: number, timeS: number, outer = false): Vec3 {
+    const z = this.direction * alongM;
+    if (u < 0.78 || (u === .78 && !outer)) {
+      const x = this.joinX * clamp(u / 0.78, 0, 1);
+      return { x, y: this.faceHeight(x, alongM, timeS), z };
+    }
+    const curl = clamp((u - 0.78) / 0.22, 0, 1);
+    const { radius, joinY, reach, drop, angle: sweep } = this.lipArcAt(alongM, timeS);
+    const angle = sweep * curl;
     const sine = Math.sin(angle), cosine = Math.cos(angle);
     const fall = .5 - .5 * cosine;
-    const reach = tipX - this.joinX;
-    const drop = tipY - joinY;
     const x = this.joinX + reach * fall + radius * .15 * sine;
     const y = joinY + drop * fall * fall + radius * 1.34 * sine;
     if (!outer) return { x, y, z };
@@ -256,6 +298,18 @@ export class WaveModel {
     };
   }
 
+  lipCoverageAt(alongM: number, x: number, timeS: number): number {
+    const index = this.sectionAt(alongM, true);
+    if (index < 0) return 0;
+    const tip = this.crossSectionAt(alongM, 1, timeS);
+    // Measure the overhang against the board's own line. A rider on the
+    // flats can pass the same section without ducking or changing cameras.
+    const reach = this.joinX - tip.x;
+    const radius = this.map.wave.barrelSections[index].radiusM;
+    const span = Math.max(.35 * radius, this.joinX - x);
+    return smoothstep((reach / span - .35) / .8);
+  }
+
   tubeCameraAt(alongM: number, timeS: number): Vec3 | null {
     const barrel = this.barrelAt(alongM, 0, 0, timeS);
     if (!barrel || barrel.radiusM < .55) return null;
@@ -264,6 +318,83 @@ export class WaveModel {
     const roof = this.crossSectionAt(alongM, .78 + .22 * .48, timeS);
     const floor = this.faceHeight(roof.x, alongM, timeS);
     return { x: roof.x, y: floor + (roof.y - floor) * .38, z: roof.z };
+  }
+
+  // One turn traces the same cross-section used by the water mesh. Measure
+  // distance along it so a narrow tube and a tall, lopsided tube both ride smoothly.
+  wallContactAt(alongM: number, angle: number, timeS: number) {
+    const points = this.wallTrack;
+    let count = 0;
+    const add = (x: number, y: number) => {
+      const previous = points[Math.max(0, count - 1)];
+      const distance = count ? previous.distance + Math.hypot(x - previous.x, y - previous.y) : 0;
+      const p = points[count++];
+      p.x = x;
+      p.y = y;
+      p.distance = distance;
+    };
+    const tip = this.crossSectionAt(alongM, 1, timeS);
+    const width = Math.max(.1, this.joinX - tip.x);
+    const floorX = this.joinX - width * .40;
+    for (let i = 0; i <= 6; i++) {
+      const x = floorX + (this.joinX - floorX) * i / 6;
+      add(x, this.faceHeight(x, alongM, timeS));
+    }
+    for (let i = 1; i <= 18; i++) {
+      const p = this.crossSectionAt(alongM, .78 + .22 * .92 * i / 18, timeS);
+      add(p.x, p.y);
+    }
+    // The falling curtain meets whitewater at its foot. Round this short
+    // corner so the board rolls through contact with the foam.
+    const lip = points[count - 1];
+    const floorEndX = tip.x + .17 * width;
+    const floorEndY = this.faceHeight(floorEndX, alongM, timeS);
+    const controlX = tip.x + .045 * width;
+    const controlY = this.faceHeight(controlX, alongM, timeS);
+    for (let i = 1; i <= 6; i++) {
+      const t = i / 6, s = 1 - t;
+      add(s ** 3 * lip.x + 3 * s * s * t * tip.x + 3 * s * t * t * controlX + t ** 3 * floorEndX,
+        s ** 3 * lip.y + 3 * s * s * t * tip.y + 3 * s * t * t * controlY + t ** 3 * floorEndY);
+    }
+    for (let i = 1; i <= 4; i++) {
+      const x = floorEndX + (floorX - floorEndX) * i / 4;
+      add(x, this.faceHeight(x, alongM, timeS));
+    }
+    const perimeter = points[count - 1].distance;
+    const sample = (distance: number) => {
+      const d = ((distance % perimeter) + perimeter) % perimeter;
+      let i = 1;
+      while (i < count - 1 && points[i].distance < d) i++;
+      const a = points[i - 1], b = points[i];
+      const t = (d - a.distance) / Math.max(.0001, b.distance - a.distance);
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    };
+    const footprint = Math.min(.55, perimeter * .055);
+    // Allow time to change rail angle at the tight foot of the curtain.
+    // Equal distance per tick here would whip the board upright in a few frames.
+    const turn = 2 * Math.PI;
+    let progress = 0;
+    for (let i = 0; i < count; i++) {
+      const p = points[i];
+      const before = sample(p.distance - footprint), after = sample(p.distance + footprint);
+      p.slope = Math.atan2(after.y - before.y, after.x - before.x);
+      if (i) {
+        const previous = points[i - 1];
+        p.slope += Math.round((previous.slope - p.slope) / turn) * turn;
+        progress += p.distance - previous.distance + .13 * perimeter * Math.abs(p.slope - previous.slope);
+      }
+      p.progress = progress;
+    }
+    const fraction = angle / turn - Math.floor(angle / turn);
+    const target = fraction * progress;
+    let i = 1;
+    while (i < count - 1 && points[i].progress < target) i++;
+    const a = points[i - 1], b = points[i];
+    const t = (target - a.progress) / Math.max(.0001, b.progress - a.progress);
+    const slope = a.slope + (b.slope - a.slope) * t;
+    const normal = { x: -Math.sin(slope), y: Math.cos(slope), z: 0 };
+    const position = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: alongM * this.direction };
+    return { position, normal };
   }
 
   barrelAt(alongM: number, x: number, riderCenterY: number, timeS: number): BarrelQuery | null {
@@ -278,7 +409,8 @@ export class WaveModel {
     const distance = Math.hypot(x - centerX, riderCenterY - centerY);
     // The rider must be under the folded lip, within the hollow, and on the rideable face.
     const inside = radius >= 0.62 && distance <= radius * 0.90 &&
-      x < this.joinX - radius * 0.18 && x > this.joinX - radius * 1.9;
+      x < this.joinX - radius * 0.18 && x > this.joinX - radius * 1.9 &&
+      x >= this.crossSectionAt(alongM, 1, timeS).x;
     return {
       sectionIndex: index,
       inside,

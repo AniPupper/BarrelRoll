@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Raycaster, Vector3 } from 'three';
+import { PerspectiveCamera, Raycaster, Vector3 } from 'three';
 import { ChaseCamera } from '../../src/engine/chaseCamera';
 import { SurfSimulation } from '../../src/engine/simulation';
 import { createTrickController } from '../../src/engine/tricks';
