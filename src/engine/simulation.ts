@@ -289,12 +289,12 @@ export class SurfSimulation {
     this.dropMomentum *= Math.exp(-dtS / 2.8);
     this.dropMomentum = clamp(this.dropMomentum - across * face * dtS * 1.1, 0, 4.8);
     const driveFromDrop = this.dropMomentum + Math.max(0, -across) * .28 - Math.max(0, across) * .17;
-    const stanceSpeed = this.stance * (this.stance < 0 ? .68 : .46);
-    const target = pace * (1.08 + face * .16 + wavePulse + stanceSpeed) +
+    const stanceSpeed = this.stance * (this.stance < 0 ? .82 : 1.28);
+    const target = pace * (1.19 + face * .16 + wavePulse + stanceSpeed - .07 * this.edge ** 2) +
       driveFromDrop + 3.4 * Math.min(1, this.driveS);
-    const response = drive < 0 ? 2.8 : target < this.speedMps ? .72 : 1.35;
+    const response = drive < 0 ? 3.2 : target < this.speedMps ? .72 : 1.65;
     this.speedMps += (target - this.speedMps) * (1 - Math.exp(-response * dtS));
-    this.speedMps = clamp(this.speedMps, pace * .36, pace * 1.88);
+    this.speedMps = clamp(this.speedMps, pace * .36, pace * 2.85);
   }
 
   private creditBarrelExit(): void {
@@ -369,8 +369,9 @@ export class SurfSimulation {
     const entry = this.wallRideEntry ?? this.position;
     const x = entry.x + (contact.position.x - entry.x) * join;
     const surface = this.wave.surfaceAt(this.alongM, x, this.simulationTimeS);
+    const contactFloor = join < 1 ? this.wave.surfaceAt(this.alongM, contact.position.x, this.simulationTimeS) : surface;
     const wrap = join * smoothstep(exitInS / .72);
-    this.position = { x, y: surface.position.y + (contact.position.y - surface.position.y) * wrap,
+    this.position = { x, y: surface.position.y + (contact.position.y - contactFloor.position.y) * wrap,
       z: contact.position.z };
     const normal = normalize({ x: surface.normal.x + (contact.normal.x - surface.normal.x) * wrap,
       y: surface.normal.y + (contact.normal.y - surface.normal.y) * wrap, z: surface.normal.z * (1 - wrap) });
@@ -433,12 +434,15 @@ export class SurfSimulation {
     // Trim while the curl folds far enough to support an inside wall ride.
     const liningUp = this.state === 'barrel' && (frame.wallHeld || frame.wallRide !== 0);
     const railInput = liningUp ? 0 : -frame.steer * this.wave.direction;
-    // Weight moves to the new rail before the board's nose follows. Tucking
-    // makes a wider arc; sitting back brings the turn around at lower speed.
-    this.edge += (railInput - this.edge) * (1 - Math.exp(-(railInput ? 8.4 : 5.8) * dtS));
-    const steeringAngle = this.edge * (.58 - this.stance * .11);
+    // A committed rail change bites quickly. Easing off lets the board run
+    // on its current heading, and braking cuts a much tighter arc.
+    const reversing = railInput * this.lateralMps < -1;
+    const edgeResponse = reversing ? 17 : railInput ? 11 : 6.8;
+    this.edge += (railInput - this.edge) * (1 - Math.exp(-edgeResponse * dtS));
+    const maxTurn = .87 - Math.max(0, this.stance) * .06 - Math.min(0, this.stance) * .23;
+    const steeringAngle = this.edge * maxTurn;
     const grip = 1 - .52 * this.skid;
-    const carveSpeed = this.speedMps * Math.tan(.58 - this.stance * .11);
+    const carveSpeed = this.speedMps * Math.tan(maxTurn);
     let carve = this.speedMps * Math.tan(steeringAngle) * (1 - .44 * assistance) * grip;
     if (line && railInput >= 0) {
       const trim = clamp((line.lineX - this.position.x) * 2.3, -4.4, carveSpeed);
@@ -446,7 +450,7 @@ export class SurfSimulation {
       else carve += (Math.min(carve, trim) - carve) * line.sectionBlend;
     }
     const drift = this.skidSide * this.wave.direction * this.skid * 4.8;
-    this.lateralMps += (carve + drift - this.lateralMps) * (1 - Math.exp(-8.6 * dtS));
+    this.lateralMps += (carve + drift - this.lateralMps) * (1 - Math.exp(-(reversing ? 17 : 11) * dtS));
     this.alongM += this.speedMps * dtS;
     const previousX = this.position.x;
     const x = clamp(this.position.x + this.lateralMps * dtS, 0.2, this.wave.joinX - 0.08);
@@ -458,7 +462,7 @@ export class SurfSimulation {
 
     const barrel = this.wave.barrelAt(this.alongM, x, this.position.y + 0.85,
       this.simulationTimeS);
-    this.railAngle += (-this.wave.direction * (.17 * this.edge + .016 * this.lateralMps) *
+    this.railAngle += (-this.wave.direction * clamp(.19 * this.edge + .015 * this.lateralMps, -.48, .48) *
       (1 - .65 * assistance) - this.railAngle) * (1 - Math.exp(-9 * dtS));
     const closingSection = barrel && this.map.wave.barrelSections[barrel.sectionIndex];
     const originalCenterX = closingSection ? this.wave.joinX - closingSection.radiusM : 0;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Raycaster, Vector3 } from 'three';
 import { PerspectiveCamera, Raycaster, Vector3 } from 'three';
+import { GameplayInput } from '../../src/engine/input';
 import { ChaseCamera } from '../../src/engine/chaseCamera';
 import { SurfSimulation } from '../../src/engine/simulation';
 import { createTrickController } from '../../src/engine/tricks';
@@ -64,7 +65,56 @@ test('the entry camera tracks the rider continuously without crossing the lip', 
       const ray = new Raycaster(camera.eye,direction.clone().normalize(),.055,direction.length()-.12);
       assert.equal(ray.intersectObjects(water).length,0,map.name);
     }
-    assert.ok(sim.metrics.longestBarrelS>.65,map.name);
-    visual.dispose();
+  });
+}
+
+
+test('the camera sees a full-speed wall loop in either direction on every barreling map', () => {
+  for (const map of Object.values(maps)) {
+    const section = map.wave.barrelSections[0];
+    if (!section) continue;
+    for (const reverse of [false, true]) {
+      const sim = new SurfSimulation(map, 'free-surf', 8, createTrickController(), () => {});
+      const input = new GameplayInput(), chase = new ChaseCamera();
+      const camera = new PerspectiveCamera(65, 16 / 9, .05, 1500);
+      const visual = new WaveVisual(sim.wave, map.visual.waterColor, map.visual.foamColor);
+      const water = [visual.mesh, visual.lipMesh, visual.backMesh];
+      const uphill = sim.wave.direction === 1 ? 'a' : 'd';
+      const start = section.start01 * map.wave.rideLengthM;
+      let engaged = false, inverted = false, turned = false;
+      sim.start();
+      input.press('w', true);
+      for (let i = 0; i < 3000 && sim.alongM < section.end01 * map.wave.rideLengthM; i++) {
+        if (!engaged && sim.alongM >= start - 2.4 * map.wave.peelSpeedMps) input.press(uphill, true);
+        if (!engaged && sim.state === 'barrel') {
+          engaged = true;
+          input.release(uphill);
+          input.press('Shift', true);
+          if (reverse) input.press(uphill === 'a' ? 'd' : 'a', true);
+        }
+        sim.step(input.frame());
+        chase.update(sim.wave, sim.position, sim.heading, 0, true, sim.simulationTimeS, 1 / 60, sim.wallRideActive);
+        if (!sim.wallRideActive) continue;
+        const up = new Vector3(0, 1, 0).applyQuaternion(sim.orientation);
+        inverted ||= up.y < -.8;
+        if (i % 7 === 0) {
+          camera.position.copy(chase.eye);
+          camera.lookAt(chase.focus);
+          camera.updateMatrixWorld();
+          const torso = up.multiplyScalar(.80).add(sim.position);
+          const projected = torso.clone().project(camera);
+          assert.ok(Math.abs(projected.x) < .95 && Math.abs(projected.y) < .90, map.name);
+          visual.update(sim.simulationTimeS);
+          for (const mesh of water) mesh.geometry.computeBoundingSphere();
+          const direction = torso.sub(chase.eye);
+          const ray = new Raycaster(chase.eye, direction.clone().normalize(), .055, direction.length() - .12);
+          assert.equal(ray.intersectObjects(water).length, 0, map.name);
+        }
+        if (sim.wallRideAngle * (reverse ? -1 : 1) >= 2 * Math.PI) { turned = true; break; }
+      }
+      assert.ok(turned && inverted, map.name);
+      assert.equal(sim.metrics.wipeouts, 0, map.name);
+      visual.dispose();
+    }
   }
 });

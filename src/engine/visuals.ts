@@ -1,6 +1,7 @@
 import {
   BackSide,
   BufferGeometry,
+  CatmullRomCurve3,
   Color,
   ConeGeometry,
   type DataTexture,
@@ -20,6 +21,7 @@ import {
   Shape,
   type Scene,
   SphereGeometry,
+  TubeGeometry,
   Vector3,
   type Material,
 } from 'three';
@@ -28,7 +30,7 @@ import type { SurfSimulation } from './simulation';
 import type { WaveModel } from './wave';
 import { createSprayTexture, createWaterNormalMap } from './waterTexture';
 
-import { penguinBody, penguinBill, penguinFlipper, penguinTail, plumage, webbedFoot } from './penguin';
+import { penguinBody, penguinBill, penguinFlipper, penguinTail, plumage, rockhopperCrest, shellPendant, webbedFoot } from './penguin';
 import { breakingFoam, breakingWater } from './breakingWater';
 
 export function createSurfSky(skyColor: string) {
@@ -334,6 +336,7 @@ export class SurferVisual {
   readonly group = new Group();
   readonly boardColor: MeshStandardMaterial;
   private readonly body = new Group();
+  private readonly crest: Mesh;
   private readonly featherMap = plumage();
   private readonly flippers: Mesh[] = [];
   private readonly materials: Material[] = [];
@@ -408,29 +411,48 @@ export class SurferVisual {
     const coat = this.material('#ffffff', .63);
     coat.map = this.featherMap;
     this.body.add(this.part(penguinBody(), coat, [0,0,0]));
-    const charcoal = this.material('#263137', .62);
+    const charcoal = this.material('#26323b', .62);
+    const feathers = this.material('#ffffff', .70);
+    feathers.vertexColors = true;
+    this.crest = this.part(rockhopperCrest(), feathers, [0,1.55,.12]);
+    this.body.add(this.crest);
     const eyes = this.material('#161715', .18);
-    const iris = this.material('#674f35', .28);
+    const sclera = this.material('#f0dfb8', .30);
+    const iris = this.material('#92552e', .24);
     const catchlight = this.material('#f3eee2', .22);
-    const feet = this.material('#ae7048', .7);
+    const feet = this.material('#d5824b', .66);
     const bill = this.material('#ffffff', .46);
     bill.vertexColors = true;
-    this.body.add(this.part(penguinBill(), bill, [0,1.37,.308]));
+    this.body.add(this.part(penguinBill(), bill, [0,1.405,.317]));
+    const cord = new CatmullRomCurve3([
+      new Vector3(0,1.23,-.087), new Vector3(.17,1.214,.036), new Vector3(.19,1.18,.193),
+      new Vector3(.125,1.11,.258), new Vector3(0,1.055,.294), new Vector3(-.125,1.11,.258),
+      new Vector3(-.19,1.18,.193), new Vector3(-.17,1.214,.036),
+    ], true);
+    this.body.add(this.part(new TubeGeometry(cord, 48, .009, 5, true), this.material('#76482e', .83), [0,0,0]));
+    const shell = this.material('#fff', .54);
+    shell.vertexColors = true;
+    shell.side = DoubleSide;
+    const charm = this.part(shellPendant(), shell, [0,1.058,.299]);
+    charm.rotation.x = -.12;
+    this.body.add(charm);
     for (const side of [-1,1]) {
-      this.body.add(this.part(new SphereGeometry(1,12,8), iris,
-        [side*.165,1.425,.246],[.028,.031,.031]));
+      this.body.add(this.part(new SphereGeometry(1,16,12), sclera,
+        [side*.150,1.478,.299],[.053,.050,.046]));
+      this.body.add(this.part(new SphereGeometry(1,16,12), iris,
+        [side*.165,1.478,.328],[.036,.037,.026]));
       this.body.add(this.part(new SphereGeometry(1,12,8), eyes,
-        [side*.181,1.426,.252],[.020,.024,.024]));
+        [side*.170,1.477,.345],[.022,.026,.016]));
       this.body.add(this.part(new SphereGeometry(1,8,6), catchlight,
-        [side*.198,1.435,.260],[.006,.006,.006]));
-      const flipper = this.part(penguinFlipper(), charcoal, [side*.292,1.00,.015]);
+        [side*.178,1.491,.359],[.008,.008,.006]));
+      const flipper = this.part(penguinFlipper(), charcoal, [side*.279,1.035,.022]);
       this.flippers.push(flipper);
       this.body.add(flipper);
-      const foot = this.part(webbedFoot(), feet, [side*.15,.205,side*.12+.015]);
-      foot.rotation.y = side*.20;
+      const foot = this.part(webbedFoot(), feet, [side*.13,.205,side*.19+.025]);
+      foot.rotation.y = .29 + side*.20;
       this.group.add(foot);
       this.group.add(this.part(new SphereGeometry(1,12,8), feet,
-        [side*.136,.249,side*.08-.045],[.049,.072,.050]));
+        [side*.128,.249,side*.16-.025],[.049,.078,.050]));
     }
     this.body.add(this.part(penguinTail(), charcoal, [0,.27,-.20]));
     this.group.add(this.body);
@@ -474,6 +496,9 @@ export class SurferVisual {
     this.body.scale.set(1 + compression * .12, 1 - compression, 1 + compression * .1);
     this.body.position.y = compression * .20;
     const bank = Math.max(-1, Math.min(1, sim.lateralMps * sim.wave.direction / 7));
+    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55 + .15 * stance;
+    this.body.rotation.y = .23 + bank * .14;
+    this.crest.rotation.x = -.09 * (Math.max(0, stance) + sim.airTuck);
     this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55;
     this.body.rotation.z = state === 'wipeout' ? .4 : -bank * .19;
     const spread = state === 'airborne' || sim.wallRideActive ? .90 - sim.airTuck * .6 :
