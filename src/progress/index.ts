@@ -1,4 +1,4 @@
-import { campaign, clearedLevel } from '../maps/campaign';
+import { finishedTutorial } from '../maps/campaign';
 import type {
   GameSettings,
   MapId,
@@ -123,7 +123,8 @@ function parseSave(raw: string): SaveData | null {
     if (!unlocked.includes(settings.boardColor)) settings.boardColor = DEFAULT_SETTINGS.boardColor;
     return {
       version: 1,
-      levelsCleared: nonnegativeInteger(value.levelsCleared) ? Math.min(campaign.length, value.levelsCleared) : 0,
+      levelsCleared: Math.max(nonnegativeInteger(value.levelsCleared) ? Math.min(5, value.levelsCleared) : 0,
+        bestRuns.mavericks?.['score-run'] && finishedTutorial(bestRuns.mavericks['score-run']) ? 1 : 0),
       settings,
       bestRuns,
       earnedMedalIds,
@@ -219,7 +220,7 @@ export function createProgressStore(options: { storage?: StorageAdapter | null }
       if (!best || result.score > best.score) {
         (data.bestRuns[result.mapId] ??= {})[result.mode] = result;
       }
-      if (campaign[data.levelsCleared] === result.mapId && clearedLevel(result)) data.levelsCleared++;
+      if (finishedTutorial(result)) data.levelsCleared = Math.max(1, data.levelsCleared);
       data.recentRunIds.push(result.runId);
       data.recentRunIds = data.recentRunIds.slice(-HISTORY_LIMIT);
       persist();

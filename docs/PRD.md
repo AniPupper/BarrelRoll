@@ -4,14 +4,14 @@
 **Repository:** https://github.com/AniPupper/BarrelRoll  
 **Updated:** November 19, 2026
 
-**Current implementation owner:** Teddy is carrying the riding, tricks, presentation, audio, campaign, Freeplay, and integration upgrades together on the `Teddy` branch. The original team assignments below document how the foundation was divided. Teddy controls commits for this upgrade.
+**Current implementation owner:** Teddy is carrying the riding, tricks, presentation, audio, campaign, Freeplay, and integration upgrades on the combined gameplay branch. The original team assignments below document how the foundation was divided. Teddy controls commits for this upgrade.
 **Canonical PRD:** This file replaces the two separate owner PRDs.
 
 BarrelRoll is a single-player, 3D browser surfing game inspired by [Cork 7](https://cork7.com/). A penguin rides a surfboard made of ice, carving across waves, riding inside curling barrels, launching from the lip, combining exaggerated spins and flips, and landing back on the water. The camera follows behind the penguin. Famous surfing locations must have different wave behavior as well as different scenery.
 
 **Confirmed requirements:** desktop/laptop browser on Mac and Windows; A/D steering, W/S air flips, and Space to jump; wave-driven forward speed; a camera behind the penguin; an ice surfboard; exaggerated and impossible tricks; playable wave barrels; multiple famous destinations, starting with Mavericks; one game built together in the same GitHub repository.
 
-**Game structure.** BarrelRoll is strictly single-player. The campaign starts at Mavericks off Pillar Point near Half Moon Bay and unlocks one level at a time. It ends with a single giant wave at Praia do Norte in Nazaré, Portugal. Clear all five main levels to unlock untimed Freeplay across the five campaign spots and bonus destination Uluwatu. Local records, optional medals, and cosmetic board colors give players goals after the campaign.
+**Current game structure.** Mavericks is the opening tutorial. Finishing one wave unlocks untimed Freeplay at all six breaks, including Nazaré and Uluwatu. A player can finish the tutorial with zero points. Medals, records and board colors remain optional goals. The five-level campaign milestones and interfaces below document the original project plan. Use the tutorial rule above for current progression and acceptance testing.
 
 **Build scope.** Use stylized 3D art, HTML/CSS, TypeScript, Three.js, and Vite with one application, one renderer, one physics clock, and one lockfile. Accounts, online leaderboards, controller/mobile controls, video export, and full fluid simulation are outside the release scope.
 

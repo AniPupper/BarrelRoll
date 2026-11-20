@@ -30,10 +30,13 @@ export class ChaseCamera {
       const lensAlong = z * wave.direction;
       const pocket = wave.tubeCameraAt(lensAlong, timeS);
       const radius = wave.barrelAt(lensAlong, 0, 0, timeS)?.radiusM ?? 0;
-      const room = MathUtils.smoothstep(radius, .56, 1.28);
       const lane = line?.lineX ?? rider.x;
       const entryX = MathUtils.lerp(rider.x, lane, .55);
-      const entryY = wave.surfaceAt(lensAlong, entryX, timeS).position.y + 1.55;
+      const fullRadius = line?.radius ?? 2;
+      const overLane = pocket ? 1 - MathUtils.smoothstep(Math.abs(pocket.x - entryX),
+        .16 * fullRadius, .72 * fullRadius) : 0;
+      const room = MathUtils.smoothstep(radius / fullRadius, .40, .85) * overLane;
+      const entryY = wave.surfaceAt(lensAlong, entryX, timeS).position.y + Math.min(1.55, .38 + .62 * fullRadius);
       const tubeX = MathUtils.lerp(entryX, pocket?.x ?? entryX, room);
       const tubeY = MathUtils.lerp(entryY, pocket?.y ?? entryY, room);
       this.desired.x = MathUtils.lerp(outsideX, tubeX, this.mix);

@@ -96,10 +96,12 @@ test('a held W does not flip at takeoff, but a fresh air press does', () => {
   assert.equal(input.frame().trick.flipAxis, 0);
 });
 
-test('a held steering key drives the barrel wall ride without an extra press', () => {
+test('normal carving stays on the face and Shift engages the barrel wall', () => {
   const input = new GameplayInput();
   input.press('a', true);
   assert.equal(input.frame().steer, -1);
+  assert.equal(input.frame().wallRide, 0);
+  input.press('Shift', true);
   assert.equal(input.frame().wallRide, -1);
   input.release('a');
   assert.equal(input.frame().wallRide, 0);
@@ -197,11 +199,12 @@ test('A can carry the board through a full loop inside the Mavericks barrel', ()
     sim.position.x, sim.simulationTimeS).position.y) < 0.05);
 });
 
-test('holding A automatically starts the Mavericks wall ride near the hollow', () => {
+test('holding Shift and A starts a deliberate Mavericks wall ride near the hollow', () => {
   const sim = new SurfSimulation(mavericks, 'free-surf', 1,
     new FixtureTrickController(), () => {});
   const input = new GameplayInput();
   sim.start();
+  input.press('Shift', true);
   input.press('a', true);
   for (let i = 0; i < 60 * 9; i++) {
     input.advance(1 / 60, true);
