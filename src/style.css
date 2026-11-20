@@ -283,7 +283,11 @@ html[data-reduced-motion='true'] .toggle-row__track::after { transition: none; }
   box-shadow: 0 .25rem 1rem #031d272b;
 }
 .readout { max-width: min(70vw, 30rem); }
-.score { min-width: 8.5rem; }
+.score { min-width: 9rem; }
+.score-line { display: flex; align-items: baseline; gap: .8rem; justify-content: space-between; }
+#score-rate { color: #9fe9d1; font-size: .79rem; font-variant-numeric: tabular-nums; }
+#wave-left { color: #c7e6e2; font-size: .83rem; font-variant-numeric: tabular-nums; }
+#final-score { font-variant-numeric: tabular-nums; }
 .wave-progress { height: 3px; background: #bad8dc40; border-radius: 2px; overflow: hidden; }
 .wave-progress i { display:block; height:100%; background:#ffcf91; transform:scaleX(0); transform-origin:left; transition:transform .12s linear; }
 [data-reduced-motion="true"] .wave-progress i { transition: none; }

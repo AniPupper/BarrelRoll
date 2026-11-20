@@ -18,7 +18,7 @@ test('contact alignment distinguishes a clean landing, skid and wipeout', () => 
   }
 });
 
-test('one zero-point tutorial wave unlocks every location and freeplay keeps rolling', () => {
+test('a tutorial earns cruising points and unlocks freeplay even without any tricks', () => {
   const values = new Map<string,string>();
   const storage = {getItem:(key:string)=>values.get(key)??null,
     setItem:(key:string,value:string)=>{values.set(key,value);}, removeItem:(key:string)=>{values.delete(key);}};
@@ -33,8 +33,9 @@ test('one zero-point tutorial wave unlocks every location and freeplay keeps rol
   tutorial.start();
   for (let i=0;i<3600 && !tutorial.ended;i++) tutorial.step(neutral);
   assert.equal(results.length,1);
-  assert.equal(results[0].score,0);
+  assert.ok(results[0].score > 0);
   assert.ok(finishedTutorial(results[0]));
+  assert.ok(finishedTutorial({ ...results[0], score: 0 }));
   store.recordResult(results[0]);
   assert.equal(finishedTutorial({...results[0],reason:'player-ended'}),false);
   const saved = createProgressStore({storage}).getSnapshot();

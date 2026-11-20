@@ -6,10 +6,10 @@ export function howToPlayContent(): string {
   <div class="guide-grid">
     <article class="guide-card"><div class="guide-card__top"><span>01 / CARVE</span><kbd>A</kbd><kbd>D</kbd><kbd>W</kbd><kbd>S</kbd></div><h2>Find the line</h2><p>Hold A or D to lean into a turn. Tuck with W to build speed, or brake with S for a tighter turn.</p></article>
     <article class="guide-card"><div class="guide-card__top"><span>02 / LAUNCH</span><kbd>SPACE</kbd></div><h2>Charge the jump</h2><p>Hold Space, then release to take off — launch near the lip for more height</p></article>
-    <article class="guide-card"><div class="guide-card__top"><span>03 / ROTATE</span><kbd>←</kbd><kbd>→</kbd><kbd>W</kbd><kbd>S</kbd></div><h2>Own the air</h2><p>A and D spin. Tap W or S after takeoff to start a flip. The arrow keys roll the board sideways. Combine them for an off-axis trick.</p></article>
-    <article class="guide-card"><div class="guide-card__top"><span>04 / BARREL</span><kbd>SHIFT</kbd><kbd>A</kbd><kbd>D</kbd></div><h2>Loop the barrel</h2><p>At Mavericks, hold A to get under the lip. Hold Shift to ride around the inside. A or D picks the direction. Hold S to stay on one part of the wall. Release Shift to settle, then carve out with D.</p></article>
+    <article class="guide-card"><div class="guide-card__top"><span>03 / AIR TRICKS</span><kbd>E</kbd><kbd>←</kbd><kbd>→</kbd></div><h2>Grab a rail</h2><p>Hold E in the air. Start with A for the left rail or D for the right. Release E to let go. A/D also spin, W/S flip after takeoff, and ←/→ roll the board.</p></article>
+    <article class="guide-card"><div class="guide-card__top"><span>04 / BARREL</span><kbd>A</kbd><kbd>D</kbd><kbd>S</kbd></div><h2>Loop the barrel</h2><p>At Mavericks, hold A into the curl and keep holding to loop. D reverses you on the wall. Hold S to park there, or release the keys to settle. From the floor, D carves out.</p></article>
   </div>
-  <div class="guide-bottom"><div><span>LAND THE MOMENT</span><p>Bring the board level with the water and align it with your travel to land cleanly</p></div><div><span>KEEP THE RUN MOVING</span><p>Escape pauses or resumes. After a run, press R to surf the same break again.</p></div></div>`;
+  <div class="guide-bottom"><div><span>RUNNING SCORE</span><p>Speed, time in the barrel, and airborne grabs raise your points per second. Land in line with the wave to bank your tricks into the counter.</p></div><div><span>KEEP THE RUN MOVING</span><p>Escape pauses or resumes. After a run, press R to surf the same break again.</p></div></div>`;
 }
 
 export function creditsContent(): string {

@@ -83,7 +83,7 @@ for (const approach of ['early', 'late'] as const) {
 }
 
 
-test('the camera sees a full-speed wall loop in either direction on every barreling map', () => {
+test('direct steering gives a visible full-speed loop in either direction on every barreling map', () => {
   for (const map of Object.values(maps)) {
     const section = map.wave.barrelSections[0];
     if (!section) continue;
@@ -100,11 +100,12 @@ test('the camera sees a full-speed wall loop in either direction on every barrel
       input.press('w', true);
       for (let i = 0; i < 3000 && sim.alongM < section.end01 * map.wave.rideLengthM; i++) {
         if (!engaged && sim.alongM >= start - 2.4 * map.wave.peelSpeedMps) input.press(uphill, true);
-        if (!engaged && sim.state === 'barrel') {
+        if (!engaged && sim.wallRideActive) {
           engaged = true;
-          input.release(uphill);
-          input.press('Shift', true);
-          if (reverse) input.press(uphill === 'a' ? 'd' : 'a', true);
+          if (reverse) {
+            input.release(uphill);
+            input.press(uphill === 'a' ? 'd' : 'a', true);
+          }
         }
         sim.step(input.frame());
         chase.update(sim.wave, sim.position, sim.heading, 0, true, sim.simulationTimeS, 1 / 60, sim.wallRideActive);

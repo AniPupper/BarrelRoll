@@ -18,17 +18,21 @@ Mavericks is the tutorial. Ride to the end of one wave to unlock untimed Freepla
 
 | Key | On the wave | In the air |
 | --- | --- | --- |
-| A / D | Carve left / right | Spin |
-| Shift | Inside the barrel, hold to loop. A / D selects the direction. Release Shift to return to the face. | — |
+| A / D | Carve left / right. Keep steering uphill into the curl to loop. | Spin |
+| E | — | Hold to grab a rail. Start the grab with A for left or D for right. |
 | W / S | Tuck for speed / brake | Frontflip / backflip (press again after takeoff) |
 | ← / → | — | Side roll |
 | Space | Hold and release to jump | Hold to tuck and rotate faster |
 | Escape | Pause | Pause |
 | R | Retry after a run | Retry after a run |
 
-At Mavericks, hold A to enter the barrel. Hold Shift to ride up the wall, across the ceiling and back to the face. While holding Shift, use A or D to steer either way, or hold S to stay on one part of the wall as you travel down the wave. Release Shift to settle and press D to carve out. At Pipeline, D takes you uphill and A carves out.
+At Mavericks, hold A to enter the barrel and keep holding it to ride up the wall, across the ceiling and back down. On the wall, D reverses the loop and S holds your height as you travel down the wave. Release the keys to settle on the floor, then press D to carve out. At Pipeline, D takes you uphill and A carves out.
+
+E alone grabs the right rail in the air. Choose the left rail by holding A when you press E. Release E and reach again to switch hands during the same jump. Holding a distinct rail for at least 0.20 seconds adds 200 base points when you land.
 
 A short tap adjusts your line. Holding a rail turns the board through a longer arc. Carry speed out of a drop, load Space, and release near the lip for a higher air. A steep ramp can also launch the board.
+
+The score runs throughout the tutorial and Freeplay. Speed, barrel time, aerial grabs and active combos raise the points-per-second readout. Banked tricks roll into the counter over time. Wipeouts stop new ride points, and pausing freezes the counter.
 
 ## Develop locally
 
