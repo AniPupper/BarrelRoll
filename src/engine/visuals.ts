@@ -20,6 +20,7 @@ import {
   Shape,
   type Scene,
   SphereGeometry,
+  Vector3,
   type Material,
 } from 'three';
 import type { GameSettings, RiderState } from '../shared/contracts';
@@ -328,6 +329,8 @@ export class WaveVisual {
 }
 
 export class SurferVisual {
+  private readonly boardUp = new Vector3();
+  private readonly boardSide = new Vector3();
   readonly group = new Group();
   readonly boardColor: MeshStandardMaterial;
   private readonly body = new Group();
@@ -468,12 +471,14 @@ export class SurferVisual {
     const state: RiderState = sim.state;
     const cover = (state === 'surfing' || state === 'barrel') ?
       sim.wave.lipCoverageAt(sim.alongM, sim.position.x, sim.simulationTimeS) : 0;
-    const compression = Math.min(.37, .09 * sim.jumpLoad + .16 * sim.landingPulse +
-      .18 * sim.airTuck + cover * .14);
+    const onWater = state === 'surfing' || state === 'barrel';
+    const stance = onWater ? sim.stance : 0;
+    const compression = Math.min(.39, .09 * sim.jumpLoad + .16 * sim.landingPulse +
+      .18 * sim.airTuck + cover * .14 + Math.max(0, stance) * .19);
     this.body.scale.set(1 + compression * .12, 1 - compression, 1 + compression * .1);
     this.body.position.y = compression * .20;
     const bank = Math.max(-1, Math.min(1, sim.lateralMps * sim.wave.direction / 7));
-    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55;
+    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55 + .15 * stance;
     this.body.rotation.z = state === 'wipeout' ? .4 : -bank * .19;
     const spread = state === 'airborne' || sim.wallRideActive ? .90 - sim.airTuck * .6 :
       .29 + Math.abs(bank) * .33 + sim.landingPulse * .25;
@@ -485,6 +490,8 @@ export class SurferVisual {
     const positions = this.sprayGeometry.getAttribute('position');
     const count = settings.quality === 'low' ? 20 : settings.quality === 'medium' ? 42 : 70;
     const active = state !== 'airborne' && sim.speedMps > 3;
+    this.boardUp.set(0, 1, 0).applyQuaternion(sim.orientation);
+    this.boardSide.set(1, 0, 0).applyQuaternion(sim.orientation);
     for (let i = 0; i < positions.count; i++) {
       if (!active || i >= count) {
         positions.setXYZ(i, 0, -1000, 0);
@@ -492,10 +499,12 @@ export class SurferVisual {
       }
       const phase = ((sim.simulationTimeS * (1.8 + (i % 7) * 0.12) + i * 0.31) % 1);
       const spread = Math.sin(i * 17.23) * (0.3 + phase * 0.7);
-      const rear = -sim.wave.direction * (0.2 + phase * (1.4 + sim.speedMps * 0.04));
-      positions.setXYZ(i, sim.position.x + spread * (1 + sim.skid * 2) - sim.lateralMps * phase * .2,
-        sim.position.y + 0.08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : 0.55),
-        sim.position.z + rear);
+      const rear = .2 + phase * (1.4 + sim.speedMps * .04);
+      const side = spread * (1 + sim.skid * 2);
+      const lift = .08 + Math.sin(phase * Math.PI) * (state === 'wipeout' ? 1.2 : .55);
+      positions.setXYZ(i, sim.position.x + this.boardSide.x * side + this.boardUp.x * lift - sim.heading.x * rear,
+        sim.position.y + this.boardSide.y * side + this.boardUp.y * lift - sim.heading.y * rear,
+        sim.position.z + this.boardSide.z * side + this.boardUp.z * lift - sim.heading.z * rear);
     }
     positions.needsUpdate = true;
     this.boardColor.color.set(settings.boardColor);

@@ -153,7 +153,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
     }
     const heading = new Vector3(simulation.heading.x, 0, simulation.heading.z).normalize();
     const water = simulation.wave.surfaceAt(rider.z * simulation.wave.direction, rider.x, simulation.simulationTimeS);
-    const airHeight = Math.max(0, rider.y - water.position.y);
+    const airHeight = simulation.state === 'airborne' ? Math.max(0, rider.y - water.position.y) : 0;
     shadow.visible = simulation.state === 'airborne';
     if (shadow.visible) {
       surfaceNormal.copy(water.normal);
@@ -163,12 +163,13 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       shadow.material.uniforms.strength.value = .46 / (1 + airHeight * .14);
     }
     chase.update(simulation.wave, rider, heading, airHeight,
-      simulation.state === 'surfing' || simulation.state === 'barrel', simulation.simulationTimeS, frameDtS);
+      simulation.state === 'surfing' || simulation.state === 'barrel', simulation.simulationTimeS, frameDtS,
+      simulation.wallRideActive);
     camera.position.copy(chase.eye);
     camera.lookAt(chase.focus);
     sky.position.copy(camera.position);
     const fov = settings.reducedMotion ? 65 :
-      63 + Math.min(9, simulation.speedMps * 0.25) + Math.min(5, airHeight * 0.3);
+      63 + Math.min(9, simulation.speedMps * 0.25) + Math.min(5, airHeight * 0.3) + chase.wallFraming * 5;
     if (Math.abs(camera.fov - fov) > 0.05) {
       camera.fov = fov;
       camera.updateProjectionMatrix();
