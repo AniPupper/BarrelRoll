@@ -1,9 +1,11 @@
 import {
-  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute,
-  Fog, Group, Mesh, MeshBasicMaterial, MeshPhongMaterial, MeshStandardMaterial, PlaneGeometry,
-  SphereGeometry, Vector2, type Material,
+  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DataTexture,
+  DodecahedronGeometry, DoubleSide, Float32BufferAttribute, Fog, Group, InstancedMesh,
+  LinearFilter, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, RGBAFormat,
+  SphereGeometry, Sprite, SpriteMaterial, type Material,
 } from 'three';
 import { createWaterNormalMap } from '../engine/waterTexture';
+import { createOceanSurface } from './oceanSurface';
 import type { EnvironmentFactory } from '../shared/contracts';
 import { createMavericksEnvironment } from './mavericks';
 import { createPipelineEnvironment } from './pipeline';
@@ -17,29 +19,31 @@ export const createEnvironment: EnvironmentFactory = (scene,map,settings) => {
   const priorFog = scene.fog;
   const normal = createWaterNormalMap();
   normal.repeat.set(76,76);
-  const sea = new Mesh(new PlaneGeometry(2000,2400),new MeshPhongMaterial({
-    color:map.visual.waterColor,normalMap:normal,normalScale:new Vector2(.35,.35),shininess:92,
-  }));
-  sea.rotation.x = -Math.PI/2;
+  const sea = createOceanSurface(2000,2400,map.visual.waterColor,normal);
   sea.position.y = -.15;
   root.add(sea);
   const tahiti = map.id === 'teahupoo', bali = map.id === 'uluwatu', portugal = map.id === 'nazare';
   const sand = new Color(bali ? '#c1bda0' : '#d3b181');
   const stone = new Color(portugal ? '#625e58' : bali ? '#9d987f' : '#766b56');
   const green = new Color(tahiti ? '#27544b' : bali ? '#486548' : '#818064');
+  // Use the same surface sample for terrain and small decorative details.
+  const coastPoint = (along:number,t:number) => {
+    const shore=-(72+14*Math.sin(along*.017)+8*Math.sin(along*.038));
+    const ridge=.52+.22*Math.sin(along*.027)+.17*Math.cos(along*.054)+.09*Math.sin(along*.091);
+    const bluff=Math.min(1,Math.max(0,(t-.12)*9));
+    const y=tahiti ? t*t*(55+ridge*145) : bali ? bluff*(20+12*ridge)+t*12 :
+      portugal ? bluff*(10+12*ridge)+t*17 : 2*t+t*t*(13+ridge*22);
+    return {x:shore-t*180,y:y-.4,z:along*direction,bluff};
+  };
   const verts:number[] = [], colors:number[] = [], indices:number[] = [];
   const rows=100, cols=12;
   for (let i=0;i<=rows;i++) {
     const along=-150+(length+450)*i/rows;
-    const shore=-(72+14*Math.sin(along*.017)+8*Math.sin(along*.038));
     for (let j=0;j<=cols;j++) {
       const t=j/cols;
-      const ridge=.52+.22*Math.sin(along*.027)+.17*Math.cos(along*.054)+.09*Math.sin(along*.091);
-      const bluff = Math.min(1,Math.max(0,(t-.12)*9));
-      const y = tahiti ? t*t*(55+ridge*145) : bali ? bluff*(20+12*ridge)+t*12 :
-        portugal ? bluff*(10+12*ridge)+t*17 : 2*t + t*t*(13+ridge*22);
-      verts.push(shore-t*180,y-.4,along*direction);
-      const c=t<.1 ? sand : stone.clone().lerp(green,Math.min(1,bluff*(.2+t)));
+      const point=coastPoint(along,t);
+      verts.push(point.x,point.y,point.z);
+      const c=t<.1 ? sand : stone.clone().lerp(green,Math.min(1,point.bluff*(.2+t)));
       colors.push(c.r,c.g,c.b);
       if (i<rows && j<cols) {
         const a=i*(cols+1)+j,b=a+cols+1;
@@ -53,6 +57,45 @@ export const createEnvironment: EnvironmentFactory = (scene,map,settings) => {
   coast.setIndex(indices);
   coast.computeVertexNormals();
   root.add(new Mesh(coast,new MeshStandardMaterial({vertexColors:true,side:DoubleSide,flatShading:true})));
+  const islandDetail=new Group();
+  if (tahiti || bali) {
+    const transform=new Object3D();
+    const rocks=new InstancedMesh(new DodecahedronGeometry(1,0),
+      new MeshStandardMaterial({color:tahiti?'#868a7e':'#b8ae90',roughness:1}),30);
+    for(let i=0;i<30;i++) {
+      const along=-45+i*(length+120)/29;
+      const point=coastPoint(along,.14+.055*Math.abs(Math.sin(i*2.19)));
+      const size=.38+.62*Math.abs(Math.sin(i*1.73));
+      transform.position.set(point.x,point.y+size*.34,point.z);
+      transform.rotation.set(0,i*1.61,0);
+      transform.scale.set(size,size*.68,size*.85);
+      transform.updateMatrix();
+      rocks.setMatrixAt(i,transform.matrix);
+    }
+    islandDetail.add(rocks);
+
+    // Low canopy clumps break up the slopes without changing their silhouette.
+    const foliageCount=tahiti?220:150;
+    const foliage=new InstancedMesh(new DodecahedronGeometry(1,1),
+      new MeshStandardMaterial({color:tahiti?'#315948':'#5b7658',roughness:1}),foliageCount);
+    const dark=new Color(tahiti?'#426652':'#667a5d');
+    const light=new Color(tahiti?'#6b8568':'#8c9b7b');
+    const fraction=(value:number) => value-Math.floor(value);
+    for(let i=0;i<foliageCount;i++) {
+      const along=-90+fraction(i*.754877666)*(length+210);
+      const t=(tahiti?.24:.20)+fraction(i*.618033989)*(tahiti?.54:.62);
+      const point=coastPoint(along,t);
+      const size=(tahiti?.78:.58)+(tahiti?.95:.72)*Math.abs(Math.sin(i*2.37));
+      transform.position.set(point.x,point.y+size*.12,point.z);
+      transform.rotation.set(0,i*1.17,0);
+      transform.scale.set(size*1.15,size*.55,size*.9);
+      transform.updateMatrix();
+      foliage.setMatrixAt(i,transform.matrix);
+      foliage.setColorAt(i,dark.clone().lerp(light,.25+.7*Math.abs(Math.sin(i*1.79))));
+    }
+    islandDetail.add(foliage);
+    root.add(islandDetail);
+  }
   function add(geo:BufferGeometry,color:string,x:number,y:number,z:number) {
     const mesh=new Mesh(geo,new MeshStandardMaterial({color}));
     mesh.position.set(x,y,z*direction);
@@ -84,11 +127,30 @@ export const createEnvironment: EnvironmentFactory = (scene,map,settings) => {
       roof.rotation.y=Math.PI/4;
     }
   }
-  const sun=new Mesh(new SphereGeometry(11,20,14),new MeshBasicMaterial({color:portugal?'#fff5d9':'#ffe4a6',fog:false}));
+  const sun=new Mesh(new SphereGeometry(11,20,14),new MeshBasicMaterial({color:portugal?'#fff5d9':'#fff1cf',fog:false}));
   sun.position.set(-160,100,(length+300)*direction);
   root.add(sun);
+  const glowSize=64;
+  const glowPixels=new Uint8Array(glowSize*glowSize*4);
+  for(let y=0;y<glowSize;y++) for(let x=0;x<glowSize;x++) {
+    const radius=Math.hypot((x+.5-glowSize/2)/(glowSize/2),(y+.5-glowSize/2)/(glowSize/2));
+    const alpha=Math.pow(Math.max(0,1-radius*radius),3);
+    const index=(y*glowSize+x)*4;
+    glowPixels[index]=255; glowPixels[index+1]=portugal?245:241; glowPixels[index+2]=portugal?217:207;
+    glowPixels[index+3]=Math.round(alpha*255);
+  }
+  const glowTexture=new DataTexture(glowPixels,glowSize,glowSize,RGBAFormat);
+  glowTexture.magFilter=LinearFilter;
+  glowTexture.minFilter=LinearFilter;
+  glowTexture.needsUpdate=true;
+  const sunGlow=new Sprite(new SpriteMaterial({map:glowTexture,transparent:true,
+    opacity:.46,depthWrite:false,fog:false}));
+  sunGlow.position.copy(sun.position);
+  sunGlow.scale.set(110,110,1);
+  root.add(sunGlow);
   scene.add(root);
   const setSettings:ReturnType<EnvironmentFactory>['setSettings'] = next => {
+    islandDetail.visible=next.quality!=='low';
     scene.fog = new Fog(map.visual.skyColor,180,next.quality === 'low' ? 650 : 980);
   };
   setSettings(settings);
@@ -105,6 +167,8 @@ export const createEnvironment: EnvironmentFactory = (scene,map,settings) => {
         }
       });
       normal.dispose();
+      sunGlow.material.dispose();
+      glowTexture.dispose();
     },
   };
 };

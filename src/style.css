@@ -26,7 +26,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #dfff9e; outline-offs
 
 .landing { position: relative; display: flex; flex-direction: column; min-height: 100svh; overflow: hidden; isolation: isolate; background: #081d27; }
 .landing::before { position: absolute; inset: -7%; z-index: -2; content: ''; pointer-events: none; background: url('./assets/mavericks-hero.webp') center 78% / cover no-repeat; filter: blur(28px) saturate(.75); opacity: .43; }
-.landing::after { position: absolute; inset: 0; z-index: -1; content: ''; pointer-events: none; background: linear-gradient(90deg, #0618218c 0%, #071b25b5 49%, #071b25ec 100%), linear-gradient(0deg, #071b25eb, transparent 60%); }
+.landing::after { position: absolute; inset: 0; z-index: -1; content: ''; pointer-events: none; background: radial-gradient(ellipse at 72% 15%, #ffbd8b25, transparent 37%), linear-gradient(90deg, #0618218c 0%, #071b25b5 49%, #071b25ec 100%), linear-gradient(0deg, #071b25eb, transparent 60%); }
 .landing__header, .atlas__header { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding-top: clamp(1.35rem, 3.5vw, 3rem); }
 .header-edition, .atlas__header-label { font-size: .68rem; font-weight: 850; letter-spacing: .19em; }
 .header-edition { color: #d7e6df; white-space: nowrap; }
@@ -48,7 +48,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #dfff9e; outline-offs
 .landing__play-link:hover { color: #ffbd8b; }
 .landing__play-link span { font-size: 1.2rem; line-height: .7; }
 .landing__visual { position: relative; min-height: 0; overflow: hidden; border: 1px solid #a4c4c1; border-radius: .25rem; background: #1c5967; }
-.landing__visual img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; filter: saturate(.83) blur(3px); transform: scale(1.15); transform-origin: center 74%; }
+.landing__visual img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; filter: saturate(.88) blur(2.7px); transform: scale(1.15); transform-origin: center 74%; }
 .landing__visual::after { position: absolute; inset: 0; content: ''; pointer-events: none; background: linear-gradient(0deg, #061b26df, transparent 42%); }
 .landing__visual-caption { position: absolute; left: clamp(1.5rem, 3vw, 3rem); bottom: clamp(1.5rem, 3vw, 3rem); z-index: 1; display: grid; gap: .38rem; color: #f4f0df; }
 .landing__visual-caption span { font-size: .68rem; font-weight: 900; letter-spacing: .17em; }
@@ -60,7 +60,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #dfff9e; outline-offs
 .footer-label span { color: #ffbd8b; margin-inline: .45rem; }
 .footer-location { color: #ffbd8b; }
 
-.atlas { min-height: 100svh; padding-bottom: 3rem; background: radial-gradient(circle at 10% 0%, #1b4b55 0, transparent 31%), #081d27; }
+.atlas { min-height: 100svh; padding-bottom: 3rem; background: radial-gradient(ellipse at 76% 4%, #b77b5630 0, transparent 32%), radial-gradient(ellipse at 10% 0%, #1b4b55 0, transparent 38%), linear-gradient(150deg, #081d27, #0d303a 65%, #081d27); }
 .atlas__header { padding-bottom: 1.4rem; border-bottom: 1px solid #c5d7cd57; }
 .atlas__header-label { margin-left: auto; color: #ffbd8b; }
 .atlas__header-label span { margin: 0 .5rem; color: #d1e5dd; }
@@ -75,7 +75,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #dfff9e; outline-offs
 .atlas__stage { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 1fr); align-items: start; gap: 1.2rem; }
 .feature { min-width: 0; overflow: hidden; border: 1px solid #9bb8b75c; border-radius: .3rem; background: #102f3a; color: #f4f0df; }
 .feature__art { position: relative; height: clamp(17rem, 28vw, 26rem); overflow: hidden; background: #1d6370; }
-.feature__art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.feature__art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; filter: blur(.25px); }
 .feature__art::after { position: absolute; inset: 0; content: ''; pointer-events: none; background: linear-gradient(0deg, #062b3b55, transparent 40%); }
 .feature__number { position: absolute; left: clamp(1rem, 2vw, 1.8rem); bottom: 1.3rem; z-index: 1; border: 1px solid #ffffffa6; padding: .55rem .75rem; color: white; font-size: .69rem; font-weight: 900; letter-spacing: .14em; }
 .feature__info { padding: clamp(1.25rem, 2.3vw, 2rem); }
@@ -105,7 +105,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #dfff9e; outline-offs
 .break-button__index { align-self: start; padding-top: .1rem; color: #b6d0c4; font-size: .63rem; font-weight: 900; letter-spacing: .08em; }
 .break-button.is-active .break-button__index, .break-button.is-active .break-button__arrow { color: #ffbd8b; }
 .break-button__art { width: 5rem; height: 3.85rem; overflow: hidden; border-radius: .12rem; background: #5e999e; }
-.break-button__art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.break-button__art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; filter: blur(.25px); }
 .break-button__copy { display: grid; min-width: 0; gap: .12rem; }
 .break-button__copy strong { overflow: hidden; font-family: Impact, 'Arial Narrow', sans-serif; font-size: clamp(1.25rem, 1.55vw, 1.8rem); font-style: italic; font-weight: 400; letter-spacing: .01em; line-height: 1; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .break-button__copy small { overflow: hidden; color: #b7d0c9; font-size: .69rem; text-overflow: ellipsis; white-space: nowrap; }
