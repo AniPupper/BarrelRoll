@@ -65,6 +65,7 @@ export interface RunResult extends RunMetrics {
 export interface HudSnapshot extends RunMetrics {
   runId: string;
   state: RiderState;
+  wallRiding: boolean;
   score: number;
   pendingCombo: number;
   multiplier: number;

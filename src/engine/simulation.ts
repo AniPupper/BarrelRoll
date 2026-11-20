@@ -153,6 +153,8 @@ export class SurfSimulation {
   private wallRideAngularSpeed = 0;
   private wallRideElapsedS = 0;
   private wallRideSense = 1;
+  private wallLaps = 0;
+  private lastLapAngle = 0;
   private wallReturnAngle: number | null = null;
   private wallRideEntry: Vec3 | null = null;
   private lastHudS = -Infinity;
@@ -217,6 +219,7 @@ export class SurfSimulation {
     const snapshot: HudSnapshot = {
       runId: this.currentRunId,
       state: this.state,
+      wallRiding: this.wallRideActive,
       score: this.score.score,
       pendingCombo: this.score.pendingCombo,
       multiplier: this.score.multiplier,
@@ -271,6 +274,7 @@ export class SurfSimulation {
     this.wallRideElapsedS = 0;
     this.wallRideEntry = null;
     this.wallRideSense = 1;
+    this.wallLaps = this.lastLapAngle = 0;
     this.wallReturnAngle = null;
   }
 
@@ -344,15 +348,20 @@ export class SurfSimulation {
     if (driving) this.wallReturnAngle = null;
     else this.wallReturnAngle ??= Math.round((this.wallRideAngle + .14 * this.wallRideAngularSpeed) / turn) * turn;
     const rate = 4.15 * clamp(this.speedMps / (this.map.wave.peelSpeedMps * 1.12), .70, 1.30);
-    const targetRate = this.wallReturnAngle === null ? this.wallRideSense * rate :
+    const holdingLine = (frame.drive ?? 0) < 0;
+    const targetRate = this.wallReturnAngle === null ? (holdingLine ? 0 : this.wallRideSense * rate) :
       clamp((this.wallReturnAngle - this.wallRideAngle) * 6, -6, 6);
     this.wallRideAngularSpeed += (targetRate - this.wallRideAngularSpeed) * (1 - Math.exp(-11 * dtS));
-    const previousTurns = Math.floor(Math.abs(this.wallRideAngle) / turn);
     this.wallRideAngle += this.wallRideAngularSpeed * dtS;
     this.wallRideElapsedS += dtS;
-    const completedTurns = Math.floor(Math.abs(this.wallRideAngle) / turn);
+    const swept = this.wallRideAngle - this.lastLapAngle;
+    if (Math.abs(swept) >= turn) {
+      this.lastLapAngle += Math.sign(swept) * turn;
+      this.wallLaps++;
+    }
     if (this.wallReturnAngle !== null) this.trickLabel = 'Carving back down';
-    else if (completedTurns > previousTurns || completedTurns > 0) this.trickLabel = 'Barrel loop ×' + completedTurns;
+    else if (holdingLine) this.trickLabel = 'Holding wall line';
+    else if (this.wallLaps) this.trickLabel = 'Barrel loop ×' + this.wallLaps;
     else this.trickLabel = 'Riding the wall';
 
     const contact = this.wave.wallContactAt(this.alongM, this.wallRideAngle, this.simulationTimeS);
@@ -365,9 +374,9 @@ export class SurfSimulation {
       z: contact.position.z };
     const normal = normalize({ x: surface.normal.x + (contact.normal.x - surface.normal.x) * wrap,
       y: surface.normal.y + (contact.normal.y - surface.normal.y) * wrap, z: surface.normal.z * (1 - wrap) });
-    const aroundSpeed = contact.perimeter * this.wallRideAngularSpeed / turn * wrap;
-    this.lateralMps = aroundSpeed * contact.tangent.x;
-    this.verticalMps = aroundSpeed * contact.tangent.y;
+    const response = 1 - Math.exp(-16 * dtS);
+    this.lateralMps += ((x - this.previousPosition.x) / dtS - this.lateralMps) * response;
+    this.verticalMps += ((this.position.y - this.previousPosition.y) / dtS - this.verticalMps) * response;
     this.heading = normalize({ x: this.lateralMps, y: this.verticalMps, z: this.speedMps * this.wave.direction });
     this.orientation = waterOrientation(normal, this.heading);
     this.barrelS += dtS;
@@ -420,7 +429,10 @@ export class SurfSimulation {
     this.updateWaveSpeed(frame, dtS);
     const line = this.wave.rideLineAt(this.alongM, this.position.x);
     const assistance = line?.strength ?? 0;
-    const railInput = -frame.steer * this.wave.direction;
+    // Under a forming lip, Shift reserves A/D for the requested loop direction.
+    // Trim while the curl folds far enough to support an inside wall ride.
+    const liningUp = this.state === 'barrel' && (frame.wallHeld || frame.wallRide !== 0);
+    const railInput = liningUp ? 0 : -frame.steer * this.wave.direction;
     // Weight moves to the new rail before the board's nose follows. Tucking
     // makes a wider arc; sitting back brings the turn around at lower speed.
     this.edge += (railInput - this.edge) * (1 - Math.exp(-(railInput ? 8.4 : 5.8) * dtS));

@@ -4,10 +4,10 @@ export function howToPlayContent(): string {
     <span>DESKTOP KEYBOARD</span>
   </div>
   <div class="guide-grid">
-    <article class="guide-card"><div class="guide-card__top"><span>01 / CARVE</span><kbd>A</kbd><kbd>D</kbd></div><h2>Find the line</h2><p>Steer left and right across the face while the wave drives you forward</p></article>
+    <article class="guide-card"><div class="guide-card__top"><span>01 / CARVE</span><kbd>A</kbd><kbd>D</kbd><kbd>W</kbd><kbd>S</kbd></div><h2>Find the line</h2><p>Hold A or D to lean into a turn. Tuck with W to build speed, or brake with S for a tighter turn.</p></article>
     <article class="guide-card"><div class="guide-card__top"><span>02 / LAUNCH</span><kbd>SPACE</kbd></div><h2>Charge the jump</h2><p>Hold Space, then release to take off — launch near the lip for more height</p></article>
-    <article class="guide-card"><div class="guide-card__top"><span>03 / ROTATE</span><kbd>A</kbd><kbd>D</kbd><kbd>W</kbd><kbd>S</kbd></div><h2>Own the air</h2><p>A and D spin, W and S flip — press W or S again after takeoff if you were already holding it</p></article>
-    <article class="guide-card"><div class="guide-card__top"><span>04 / BARREL</span><kbd>SHIFT</kbd><kbd>A</kbd><kbd>D</kbd></div><h2>Ride the wall</h2><p>Carve toward the hollow and ease off to hold your line. Inside a wide tube, hold Shift and carve to ride the wall.</p></article>
+    <article class="guide-card"><div class="guide-card__top"><span>03 / ROTATE</span><kbd>←</kbd><kbd>→</kbd><kbd>W</kbd><kbd>S</kbd></div><h2>Own the air</h2><p>A and D spin. Tap W or S after takeoff to start a flip. The arrow keys roll the board sideways. Combine them for an off-axis trick.</p></article>
+    <article class="guide-card"><div class="guide-card__top"><span>04 / BARREL</span><kbd>SHIFT</kbd><kbd>A</kbd><kbd>D</kbd></div><h2>Loop the barrel</h2><p>At Mavericks, hold A to get under the lip. Hold Shift to ride around the inside. A or D picks the direction. Hold S to stay on one part of the wall. Release Shift to settle, then carve out with D.</p></article>
   </div>
   <div class="guide-bottom"><div><span>LAND THE MOMENT</span><p>Bring the board level with the water and align it with your travel to land cleanly</p></div><div><span>KEEP THE RUN MOVING</span><p>Escape pauses or resumes. After a run, press R to surf the same break again.</p></div></div>`;
 }

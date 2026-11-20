@@ -17,13 +17,16 @@ Mavericks is the tutorial. Ride to the end of one wave to unlock untimed Freepla
 | Key | On the wave | In the air |
 | --- | --- | --- |
 | A / D | Carve left / right | Spin |
-| Shift + A / D | Ride the inner barrel wall | — |
-| W / S | — | Flip after takeoff |
+| Shift | Inside the barrel, hold to loop. A / D selects the direction. Release Shift to return to the face. | — |
+| W / S | Tuck for speed / brake | Frontflip / backflip (press again after takeoff) |
+| ← / → | — | Side roll |
 | Space | Hold and release to jump | Hold to tuck and rotate faster |
 | Escape | Pause | Pause |
 | R | Retry after a run | Retry after a run |
 
-At Mavericks, hold A to enter the barrel and press D to carve back out. A steep ramp can also launch the board.
+At Mavericks, hold A to enter the barrel. Hold Shift to ride up the wall, across the ceiling and back to the face. While holding Shift, use A or D to steer either way, or hold S to stay on one part of the wall as you travel down the wave. Release Shift to settle and press D to carve out. At Pipeline, D takes you uphill and A carves out.
+
+A short tap adjusts your line. Holding a rail turns the board through a longer arc. Carry speed out of a drop, load Space, and release near the lip for a higher air. A steep ramp can also launch the board.
 
 ## Develop locally
 
