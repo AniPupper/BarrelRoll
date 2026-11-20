@@ -1,8 +1,7 @@
 import {
-  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DataTexture,
-  DodecahedronGeometry, DoubleSide, Float32BufferAttribute, Fog, Group, InstancedMesh,
-  LinearFilter, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, RGBAFormat,
-  SphereGeometry, Sprite, SpriteMaterial, type Material,
+  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute,
+  Fog, Group, Mesh, MeshPhongMaterial, MeshStandardMaterial, PlaneGeometry,
+  SphereGeometry, Vector2, type Material,
 } from 'three';
 import { createWaterNormalMap } from '../engine/waterTexture';
 import { createOceanSurface } from './oceanSurface';
@@ -127,27 +126,6 @@ export const createEnvironment: EnvironmentFactory = (scene,map,settings) => {
       roof.rotation.y=Math.PI/4;
     }
   }
-  const sun=new Mesh(new SphereGeometry(11,20,14),new MeshBasicMaterial({color:portugal?'#fff5d9':'#fff1cf',fog:false}));
-  sun.position.set(-160,100,(length+300)*direction);
-  root.add(sun);
-  const glowSize=64;
-  const glowPixels=new Uint8Array(glowSize*glowSize*4);
-  for(let y=0;y<glowSize;y++) for(let x=0;x<glowSize;x++) {
-    const radius=Math.hypot((x+.5-glowSize/2)/(glowSize/2),(y+.5-glowSize/2)/(glowSize/2));
-    const alpha=Math.pow(Math.max(0,1-radius*radius),3);
-    const index=(y*glowSize+x)*4;
-    glowPixels[index]=255; glowPixels[index+1]=portugal?245:241; glowPixels[index+2]=portugal?217:207;
-    glowPixels[index+3]=Math.round(alpha*255);
-  }
-  const glowTexture=new DataTexture(glowPixels,glowSize,glowSize,RGBAFormat);
-  glowTexture.magFilter=LinearFilter;
-  glowTexture.minFilter=LinearFilter;
-  glowTexture.needsUpdate=true;
-  const sunGlow=new Sprite(new SpriteMaterial({map:glowTexture,transparent:true,
-    opacity:.46,depthWrite:false,fog:false}));
-  sunGlow.position.copy(sun.position);
-  sunGlow.scale.set(110,110,1);
-  root.add(sunGlow);
   scene.add(root);
   const setSettings:ReturnType<EnvironmentFactory>['setSettings'] = next => {
     islandDetail.visible=next.quality!=='low';

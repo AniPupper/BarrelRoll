@@ -509,14 +509,11 @@ export class SurferVisual {
     this.body.scale.set(1 + compression * .12, 1 - compression, 1 + compression * .1);
     this.body.position.set(hand * reach * .08, compression * .20 - reach * .12, reach * .04);
     const bank = Math.max(-1, Math.min(1, sim.lateralMps * sim.wave.direction / 7));
-    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55 + .15 * stance + reach * .15;
-    this.body.rotation.y = .23 + bank * .14 + hand * reach * .12;
+    const stance = sim.stance;
+    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55 + .15 * stance;
+    this.body.rotation.y = .23 + bank * .14;
     this.crest.rotation.x = -.09 * (Math.max(0, stance) + sim.airTuck);
-    this.body.rotation.z = state === 'wipeout' ? .4 : -bank * .19 - hand * reach * .18;
-    if (reach > .001) {
-      this.body.updateMatrix();
-      this.bodyInverse.copy(this.body.matrix).invert();
-    }
+    this.body.rotation.z = state === 'wipeout' ? .4 : -bank * .19;
     const spread = state === 'airborne' || sim.wallRideActive ? .90 - sim.airTuck * .6 :
       .29 + Math.abs(bank) * .33 + sim.landingPulse * .25;
     for (let i=0; i<this.flippers.length; i++) {

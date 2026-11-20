@@ -11,7 +11,7 @@ import { ScoreCounter } from './app/scoreCounter';
 import { createSurfSession } from './engine';
 import { createTrickController } from './engine/tricks';
 import { finishedTutorial, rideMode } from './maps/campaign';
-import { createEnvironment } from './worlds/tour';
+import { createEnvironmentWithSky } from './app/skyAtmosphere';
 import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -305,14 +305,7 @@ function showRide(id:MapId) {
   try {
     const scoreText = byId('score'), rateText = byId('score-rate');
     session=createSurfSession({mount:byId('water'),map:maps[id],mode,seed:8,settings,
-      createEnvironment,createTrickController,onEvent,
-      onScoreFrame(target, dtS) {
-        scoreCounter.advance(target, dtS);
-        const points = number(Math.floor(scoreCounter.value));
-        const pace = '+' + number(scoreCounter.rate) + ' pts/s';
-        if (scoreText.textContent !== points) scoreText.textContent = points;
-        if (rateText.textContent !== pace) rateText.textContent = pace;
-      }});
+      createEnvironment:createEnvironmentWithSky,createTrickController,onEvent});
     audio.start(settings);
     session.start();
   } catch (error) {
