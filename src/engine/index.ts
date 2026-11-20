@@ -36,6 +36,7 @@ export interface SurfSessionOptions {
   createEnvironment: EnvironmentFactory;
   createTrickController: () => TrickController;
   onEvent: (event: GameEvent) => void;
+  onScoreFrame?: (score: number, dtS: number) => void;
 }
 
 export function createSurfSession(options: SurfSessionOptions): SurfSession {
@@ -175,6 +176,7 @@ export function createSurfSession(options: SurfSessionOptions): SurfSession {
       camera.updateProjectionMatrix();
     }
     renderer.render(scene, camera);
+    options.onScoreFrame?.(simulation.score.score, frameDtS);
   };
 
   const schedule = () => {

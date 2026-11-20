@@ -98,6 +98,7 @@ export class SurfSimulation {
   private edge = 0;
   private dropMomentum = 0;
   airTuck = 0;
+  grabPose = 0;
   skidSide = 0;
   private turnStartFace = 0;
   private turnExtremeFace = 0;
@@ -175,6 +176,7 @@ export class SurfSimulation {
   }
 
   reset(): void {
+    this.grabPose = 0;
     this.trick.reset();
     this.wave.resetWave();
     this.score.reset();
@@ -246,6 +248,7 @@ export class SurfSimulation {
   }
 
   private wipeout(reason: string): void {
+    this.grabPose = 0;
     this.score.losePending();
     this.trick.reset();
     this.activeAirId = null;
@@ -342,13 +345,14 @@ export class SurfSimulation {
     }
     const section = this.map.wave.barrelSections[barrel.sectionIndex];
     const exitInS = (section.end01 * this.map.wave.rideLengthM - this.alongM) / this.speedMps;
-    const driving = (frame.wallHeld || frame.wallRide !== 0) && exitInS > 1.05;
-    if (frame.wallRide) this.wallRideSense = -frame.wallRide * this.wave.direction;
+    const wallSteer = frame.steer || frame.wallRide;
+    const holdingLine = (frame.drive ?? 0) < 0;
+    const driving = (wallSteer || holdingLine || frame.wallHeld) && exitInS > 1.05;
+    if (wallSteer) this.wallRideSense = -wallSteer * this.wave.direction;
     const turn = 2 * Math.PI;
     if (driving) this.wallReturnAngle = null;
     else this.wallReturnAngle ??= Math.round((this.wallRideAngle + .14 * this.wallRideAngularSpeed) / turn) * turn;
     const rate = 4.15 * clamp(this.speedMps / (this.map.wave.peelSpeedMps * 1.12), .70, 1.30);
-    const holdingLine = (frame.drive ?? 0) < 0;
     const targetRate = this.wallReturnAngle === null ? (holdingLine ? 0 : this.wallRideSense * rate) :
       clamp((this.wallReturnAngle - this.wallRideAngle) * 6, -6, 6);
     this.wallRideAngularSpeed += (targetRate - this.wallRideAngularSpeed) * (1 - Math.exp(-11 * dtS));
@@ -404,7 +408,8 @@ export class SurfSimulation {
       this.moveOnBarrelWall(frame, dtS);
       return;
     }
-    if (frame.wallHeld || frame.wallRide) {
+    const uphill = -frame.steer * this.wave.direction > 0;
+    if (uphill || frame.wallHeld || frame.wallRide) {
       const barrel = this.wave.barrelAt(this.alongM, this.position.x, this.position.y + .85, this.simulationTimeS);
       if (barrel && barrel.openFraction > .32 && barrel.radiusM > .60) {
         const section = this.map.wave.barrelSections[barrel.sectionIndex];
@@ -430,8 +435,8 @@ export class SurfSimulation {
     this.updateWaveSpeed(frame, dtS);
     const line = this.wave.rideLineAt(this.alongM, this.position.x);
     const assistance = line?.strength ?? 0;
-    // Under a forming lip, Shift reserves A/D for the requested loop direction.
-    // Trim while the curl folds far enough to support an inside wall ride.
+    // The original hold-to-loop shortcut can still queue a reverse lap as the lip forms.
+    // With direct steering, the downhill rail stays available to carve out from the floor.
     const liningUp = this.state === 'barrel' && (frame.wallHeld || frame.wallRide !== 0);
     const railInput = liningUp ? 0 : -frame.steer * this.wave.direction;
     // A committed rail change bites quickly. Easing off lets the board run
@@ -548,6 +553,7 @@ export class SurfSimulation {
       z: this.wave.direction * this.alongM };
     this.travelHeading();
     const trickFrame = this.trick.step(frame.trick, dtS);
+    this.grabPose += ((trickFrame.grabSide ?? 0) - this.grabPose) * (1 - Math.exp(-19 * dtS));
     this.orientation = trickFrame.orientation;
     this.trickLabel = trickFrame.label;
 
@@ -615,6 +621,7 @@ export class SurfSimulation {
   }
 
   private nextWave(): void {
+    this.grabPose = 0;
     if (this.state === 'airborne') {
       this.trick.reset();
       this.activeAirId = null;
@@ -646,6 +653,7 @@ export class SurfSimulation {
     this.wave.setPeelPosition(this.alongM, this.wallRideActive ? undefined : this.position.x);
     this.previousPosition = { ...this.position };
     this.simulationTimeS += actualDt;
+    if (this.state !== 'airborne') this.grabPose *= Math.exp(-22 * actualDt);
     this.elapsedS += actualDt;
     this.landingPulse = Math.max(0, this.landingPulse - actualDt * 3.6);
     const counterSteering = frame.steer * this.skidSide > .12;
@@ -666,6 +674,8 @@ export class SurfSimulation {
     } else if (this.state === 'airborne') this.moveInAir(frame, actualDt);
     else this.moveOnWave(frame, actualDt);
 
+    this.score.addRideTime(actualDt, this.speedMps, this.state, this.wallRideActive,
+      !!frame.trick.grab && Math.abs(this.grabPose) > .9);
     if (this.map.id === 'nazare' && this.mode === 'score-run') {
       if (this.state === 'wipeout') { this.finish('wipeout'); return; }
       if (this.alongM >= this.map.wave.rideLengthM) {

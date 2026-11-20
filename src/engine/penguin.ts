@@ -46,8 +46,9 @@ export const penguinBody = () => skin([
 ]);
 
 // Local root is at the shoulder; the tapered, swept tip points aft.
+export const flipperTip = new Vector3(0, -.73, -.25);
 export const penguinFlipper = () => skin([
-  [-.73,.008,.012,-.25],[-.64,.024,.054,-.21],[-.44,.038,.10,-.14],
+  [flipperTip.y,.008,.012,flipperTip.z],[-.64,.024,.054,-.21],[-.44,.038,.10,-.14],
   [-.23,.049,.14,-.069],[-.085,.067,.14,-.012],[0,.077,.107,.015],[.055,.015,.022,.017],
 ],20);
 

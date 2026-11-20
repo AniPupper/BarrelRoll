@@ -90,7 +90,7 @@ test('releasing a carve early or late still gives a long first Mavericks barrel'
   }
 });
 
-test('a sustained uphill carve finds the tube, and a downhill carve leaves it', () => {
+test('a sustained uphill carve loops, releasing settles, and the downhill rail carves out', () => {
   for (const map of [maps.mavericks, maps.pipeline]) {
     const start = map.wave.barrelSections[0].start01 * map.wave.rideLengthM;
     for (const carveFrom of [0, start + 4]) {
@@ -105,6 +105,10 @@ test('a sustained uphill carve finds the tube, and a downhill carve leaves it', 
       }
       assert.equal(sim.state, 'barrel', map.name);
       assert.ok(sim.barrelS >= 2, map.name);
+      assert.ok(sim.wallRideActive, map.name);
+      for (let tick = 0; tick < 140 && sim.wallRideActive; tick++) sim.step(input(0));
+      assert.equal(sim.wallRideActive, false, map.name);
+      assert.equal(sim.state, 'barrel', map.name);
       const insideX = sim.position.x;
       for (let tick = 0; tick < 60; tick++) sim.step(input(sim.wave.direction));
       assert.equal(sim.state, 'surfing', map.name);
@@ -145,11 +149,10 @@ test('the wall brake parks on the ceiling, a reverse carve unwinds, and Space po
   function tick() { input.advance(1 / 60, true); sim.step(input.frame()); }
   for (let i = 0; i < 600 && sim.state !== 'barrel'; i++) tick();
   assert.equal(sim.state, 'barrel');
-  input.release('a');
-  input.press('Shift', true);
   const upY = () => 1 - 2 * (sim.orientation.x ** 2 + sim.orientation.z ** 2);
   for (let i = 0; i < 140 && upY() > -.80; i++) tick();
   assert.ok(upY() < -.8);
+  input.release('a');
   input.press('s', true);
   for (let i = 0; i < 30; i++) tick();
   const parkedAngle = sim.wallRideAngle, start = sim.alongM;

@@ -12,7 +12,7 @@ export interface ControlFrame {
 
 const axis = (negative: boolean, positive: boolean): -1 | 0 | 1 =>
   negative === positive ? 0 : negative ? -1 : 1;
-const rideKeys = new Set(['w', 'a', 's', 'd', 'space', 'shift', 'arrowleft', 'arrowright', 'r']);
+const rideKeys = new Set(['w', 'a', 's', 'd', 'e', 'space', 'shift', 'arrowleft', 'arrowright', 'r']);
 
 function normalize(key: string): string {
   return key === ' ' || key === 'Spacebar' ? 'space' : key.toLowerCase();
@@ -71,6 +71,7 @@ export class GameplayInput {
       jumpChargeS,
       charge01: (this.chargingS ?? 0) / .6,
       trick: {
+        grab: this.held.has('e'),
         tucked: this.chargingS === null && this.held.has('space'),
         spinAxis: axis(this.held.has('a'), this.held.has('d')),
         rollAxis: axis(this.held.has('arrowleft'), this.held.has('arrowright')),
