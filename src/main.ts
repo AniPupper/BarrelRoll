@@ -10,7 +10,7 @@ import { SurfAudio } from './app/surfAudio';
 import { createSurfSession } from './engine';
 import { createTrickController } from './engine/tricks';
 import { finishedTutorial, rideMode } from './maps/campaign';
-import { createEnvironment } from './worlds/tour';
+import { createEnvironmentWithSky } from './app/skyAtmosphere';
 import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -300,7 +300,7 @@ function showRide(id:MapId) {
     <span id="callout"></span></div><div id="overlay"></div></main>`;
   try {
     session=createSurfSession({mount:byId('water'),map:maps[id],mode,seed:8,settings,
-      createEnvironment,createTrickController,onEvent});
+      createEnvironment:createEnvironmentWithSky,createTrickController,onEvent});
     audio.start(settings);
     session.start();
   } catch (error) {

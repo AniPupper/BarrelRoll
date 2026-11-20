@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Raycaster, Vector3 } from 'three';
 import { PerspectiveCamera, Raycaster, Vector3 } from 'three';
 import { GameplayInput } from '../../src/engine/input';
 import { ChaseCamera } from '../../src/engine/chaseCamera';
@@ -65,8 +64,8 @@ test('the entry camera tracks the rider continuously without crossing the lip', 
       const ray = new Raycaster(camera.eye,direction.clone().normalize(),.055,direction.length()-.12);
       assert.equal(ray.intersectObjects(water).length,0,map.name);
     }
-  });
-}
+  }
+});
 
 
 test('the camera sees a full-speed wall loop in either direction on every barreling map', () => {

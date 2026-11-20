@@ -1,6 +1,6 @@
 import {
   BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute,
-  Fog, Group, Mesh, MeshBasicMaterial, MeshPhongMaterial, MeshStandardMaterial, PlaneGeometry,
+  Fog, Group, Mesh, MeshPhongMaterial, MeshStandardMaterial, PlaneGeometry,
   SphereGeometry, Vector2, type Material,
 } from 'three';
 import { createWaterNormalMap } from '../engine/waterTexture';
@@ -84,9 +84,6 @@ export const createEnvironment: EnvironmentFactory = (scene,map,settings) => {
       roof.rotation.y=Math.PI/4;
     }
   }
-  const sun=new Mesh(new SphereGeometry(11,20,14),new MeshBasicMaterial({color:portugal?'#fff5d9':'#ffe4a6',fog:false}));
-  sun.position.set(-160,100,(length+300)*direction);
-  root.add(sun);
   scene.add(root);
   const setSettings:ReturnType<EnvironmentFactory>['setSettings'] = next => {
     scene.fog = new Fog(map.visual.skyColor,180,next.quality === 'low' ? 650 : 980);
