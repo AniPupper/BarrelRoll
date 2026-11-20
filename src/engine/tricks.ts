@@ -37,7 +37,7 @@ export function createTrickController(): TrickController {
       loadedRail = 0;
       const rotationScale = input.tucked ? 1.42 : 1;
       spinRate = MathUtils.damp(spinRate, input.spinAxis * 650 * rotationScale, input.spinAxis ? 12 : 19, dt);
-      flipRate = MathUtils.damp(flipRate, input.flipAxis * 510 * rotationScale, input.flipAxis ? 11 : 19, dt);
+      flipRate = MathUtils.damp(flipRate, input.flipAxis * 510 * rotationScale, input.flipAxis ? 11 : 36, dt);
       rollRate = MathUtils.damp(rollRate, (input.rollAxis ?? 0) * 515 * rotationScale, input.rollAxis ? 11 : 19, dt);
       spin += spinRate * dt;
       flip += flipRate * dt;
