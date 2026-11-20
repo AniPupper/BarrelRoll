@@ -76,3 +76,16 @@ test('a loaded rail carries into a matching spin and still allows a straight air
   assert.equal(spinAfterTakeoff(-1, 1), spinAfterTakeoff(0, 1));
   assert.equal(spinAfterTakeoff(1, 0), 0);
 });
+
+test('releasing a carve early or late still gives a long first Mavericks barrel', () => {
+  for (const heldS of [.7, 1.4, 2.4]) {
+    const sim = new SurfSimulation(maps.mavericks,'free-surf',8,createTrickController(),()=>{});
+    sim.start();
+    for (let tick=0;tick<60*15;tick++) {
+      const steer = tick<heldS*60 ? -1 : 0;
+      sim.step({steer,wallRide:0,jumpChargeS:null,trick:{spinAxis:0,flipAxis:0}});
+    }
+    assert.ok(sim.metrics.longestBarrelS>4.5);
+    assert.equal(sim.metrics.wipeouts,0);
+  }
+});

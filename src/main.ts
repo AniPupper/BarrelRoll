@@ -1,38 +1,30 @@
 import { MAP_CARDS } from './app/mapCards';
 import { creditsContent, howToPlayContent } from './app/infoContent';
 import { locationArt } from './app/locationArt';
-<<<<<<< HEAD
 import heroPhotoUrl from './assets/mavericks-hero.webp?url';
-import { MAP_ORDER, STARTING_MAP_ID } from './maps';
+import { maps, MAP_ORDER, STARTING_MAP_ID } from './maps';
 import { createProgressStore } from './progress';
 import { BOARD_COLOR_UNLOCKS } from './progress/challenges';
-import type { GameSettings, MapId, Quality } from './shared/contracts';
-import './style.css';
-
-const playableUrl = `${import.meta.env.BASE_URL}play.html`;
-
-const app = document.querySelector<HTMLDivElement>('#app');
-if (!app) throw new Error('BarrelRoll app mount is missing');
-=======
-import heroWaveUrl from './assets/hero-wave.svg?url';
-import { locationArt } from './app/locationArt';
-import { MAP_CARDS } from './app/mapCards';
+import type { GameSettings, MapId, Quality, GameEvent, HudSnapshot, Mode, RunResult, SurfSession } from './shared/contracts';
 import { SurfAudio } from './app/surfAudio';
 import { createSurfSession } from './engine';
 import { createTrickController } from './engine/tricks';
-import { maps, MAP_ORDER } from './maps';
-import { campaign, clearedLevel, objectives } from './maps/campaign';
-import { createProgressStore } from './progress';
+import { finishedTutorial, rideMode } from './maps/campaign';
 import { createEnvironment } from './worlds/tour';
-import type { GameEvent, HudSnapshot, MapId, Mode, RunResult, SurfSession } from './shared/contracts';
->>>>>>> 6d9e2030dc716d8734b4b8d1ca5085b74f55a3b1
+import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
+if (!app) throw new Error('BarrelRoll app mount is missing');
+
 const progress = createProgressStore();
+type Screen = 'title' | 'maps' | 'how' | 'settings' | 'credits' | 'ride' | 'paused' | 'results' | 'error';
+let screen: Screen = 'title';
+let selectedMap: MapId = STARTING_MAP_ID;
+let settingsNotice = '';
+let resetPending = false;
+
 const audio = new SurfAudio();
 let session: SurfSession | undefined;
-let screen: 'title'|'atlas'|'ride'|'paused'|'results'|'error' = 'title';
-let selected:MapId = 'mavericks';
 let mode:Mode = 'score-run';
 let lastCallout = '', calloutUntil = 0, previousTrick = '';
 const byId = (id:string) => document.getElementById(id)!;
@@ -40,12 +32,12 @@ const button = (label:string,action:string,primary=false) =>
   `<button type="button" class="${primary?'primary-button':'surf-button'}" data-action="${action}">${label}</button>`;
 const number = (n:number) => Math.round(n).toLocaleString();
 const snap = () => progress.getSnapshot();
-const instructions = 'A/D carve. Ride up a steep ramp to launch, or hold and release Space for a bigger air. In the air, A/D spin and W/S flip. Hold Space again to tuck and rotate faster.';
+const instructions = 'A/D carve. Ride up a steep ramp to launch, or hold and release Space for a bigger air. In the air, A/D spin and W/S flip. Hold Space again to tuck. Shift + carve rides the barrel wall.';
 const rideTips:Record<MapId,string> = {
-  mavericks:'Drop low, turn back uphill, then release Space at the lip.',
+  mavericks:'Use A to climb toward the curl. Ease off to hold your line.',
   jbay:'Climb high and carve back down for a cutback. Link it into an air, then ride clear to bank.',
   pipeline:'Stay under the lip and follow the daylight through the opening.',
-  teahupoo:'Hold the tube through its taper, then link airs to build your score.',
+  teahupoo:'Carve toward the hollow and follow the opening before the lip closes.',
   nazare:'Start high. Carve down toward the yellow buoys and cross between them on your board.',
   uluwatu:'Alternate between the cliffside barrels and the open launch sections.',
 };
@@ -55,22 +47,33 @@ function stopRide() {
   session?.dispose();
   session=undefined;
 }
-function title() {
-  screen='title'; stopRide();
-  const cleared=snap().levelsCleared, next=campaign[Math.min(cleared,4)];
-  app.innerHTML=`<main class="landing"><img class="landing__art" src="${heroWaveUrl}" alt="">
-    <div class="landing__veil"></div><div class="content"><p class="eyebrow"><span class="eyebrow__dash"></span> Single-player surf tour</p>
-    <h1>Barrel<br><span>Roll.</span></h1>
-    <p class="tagline">${cleared===5?'Five breaks cleared. The ocean is yours.':maps[next].name+' · '+maps[next].region}</p>
-    <div class="actions">${button(cleared===0?'Surf Mavericks':cleared===5?'Enter Freeplay':'Continue campaign',cleared===5?'free':'continue',true)}
-    ${button('Campaign levels','atlas')}</div>
-    <p class="location">${cleared===5?'Uluwatu unlocked':cleared+' / 5 cleared · Freeplay unlocks after Nazaré'}</p>
-    </div></main>`;
+
+const indexOf = (id: MapId) => String(MAP_ORDER.indexOf(id) + 1).padStart(2, '0');
+
+function brand(): string {
+  return `<span class="brand" aria-label="BarrelRoll">
+    <span class="brand__symbol" aria-hidden="true"><svg viewBox="0 0 38 38" fill="none"><path d="M3 24c5-11 9-15 15-15 7 0 10 4 16 11-6-2-10-2-14 1-4 3-6 7-8 13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M4 31c6-3 10-3 14 0m6-5c4-2 7-2 10 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+    <span class="brand__word">BARREL<span>ROLL</span></span>
+  </span>`;
 }
-<<<<<<< HEAD
+
+function mapButton(id: MapId): string {
+  const card = MAP_CARDS[id];
+  const active = selectedMap === id;
+  const locked = !rideMode(id, progress.getSnapshot().levelsCleared);
+  return `<li class="break-list__item">
+    <button type="button" class="break-button${active ? ' is-active' : ''}${locked ? ' is-locked' : ''}" data-map="${id}" aria-pressed="${active}">
+      <span class="break-button__index">${indexOf(id)}</span>
+      <span class="break-button__art" aria-hidden="true">${locationArt(id, 'list')}</span>
+      <span class="break-button__copy"><strong>${card.name}</strong><small>${card.region}</small></span>
+      <span class="break-button__arrow" aria-hidden="true">↗</span>
+    </button>
+  </li>`;
+}
 
 function renderTitle(): void {
-  app!.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
+  const freeplay = progress.getSnapshot().levelsCleared > 0;
+  app.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
     <main class="landing" id="main-content">
       <header class="landing__header shell">
         ${brand()}
@@ -86,8 +89,8 @@ function renderTitle(): void {
           <p class="kicker"><span class="kicker__line"></span> AN ARCADE SURF ADVENTURE</p>
           <h1>BARREL<br><span>ROLL</span></h1>
           <p class="landing__lead">Find your line on the world's most legendary waves</p>
-          <button type="button" class="action-button" id="play-button"><span>EXPLORE THE BREAKS</span><span class="action-button__icon" aria-hidden="true">↗</span></button>
-          <a class="landing__play-link" href="${playableUrl}">PLAY THE GAME <span aria-hidden="true">↗</span></a>
+          <button type="button" class="action-button" data-action="${freeplay ? 'atlas' : 'continue'}"><span>${freeplay ? 'ENTER FREEPLAY' : 'START MAVERICKS TUTORIAL'}</span><span class="action-button__icon" aria-hidden="true">↗</span></button>
+          <button type="button" class="landing__play-link" id="play-button">EXPLORE THE BREAKS <span aria-hidden="true">↗</span></button>
         </section>
         <div class="landing__visual">
           <img src="${heroPhotoUrl}" alt="A towering wave at Mavericks under a foggy California sky" />
@@ -101,8 +104,8 @@ function renderTitle(): void {
         <span class="footer-location">THE OCEAN IS YOUR PLAYGROUND</span>
       </footer>
     </main>`;
-  app!.querySelector<HTMLButtonElement>('#play-button')?.addEventListener('click', () => openScreen('maps'));
-  app!.querySelectorAll<HTMLButtonElement>('[data-screen]').forEach((button) => {
+  app.querySelector<HTMLButtonElement>('#play-button')?.addEventListener('click', () => openScreen('maps'));
+  app.querySelectorAll<HTMLButtonElement>('[data-screen]').forEach((button) => {
     button.addEventListener('click', () => openScreen(button.dataset.screen as Screen));
   });
 }
@@ -110,12 +113,12 @@ function renderTitle(): void {
 function renderMaps(): void {
   const card = MAP_CARDS[selectedMap];
   const snapshot = progress.getSnapshot();
-  const best = snapshot.bestRuns[selectedMap]?.['score-run']?.score;
+  const available = rideMode(selectedMap, snapshot.levelsCleared);
+  const best = available ? snapshot.bestRuns[selectedMap]?.[available]?.score : undefined;
   const goals = progress.challenges.filter((goal) => goal.mapId === selectedMap);
   const earned = goals.filter((goal) => snapshot.earnedMedalIds.includes(goal.id)).length;
-  const isOpeningMap = selectedMap === STARTING_MAP_ID;
 
-  app!.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
+  app.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
     <main class="atlas atlas--${card.tone}" id="main-content">
       <header class="atlas__header shell">
         ${brand()}
@@ -125,45 +128,44 @@ function renderMaps(): void {
       <div class="atlas__body shell">
         <div class="atlas__intro">
           <div><p class="kicker"><span class="kicker__line"></span> THE SURF ATLAS</p><h1>CHOOSE A <span>BREAK</span></h1></div>
-          <p>From the first wave at Mavericks to the final ride at Nazaré<br>Select a coast to preview its break</p>
+          <p>${snapshot.levelsCleared ? 'Freeplay is open. Choose any of the six breaks.' : 'Finish one wave at Mavericks to unlock all six breaks.'}</p>
         </div>
         <div class="atlas__stage">
           <section class="feature" aria-live="polite" aria-label="Selected location">
             <div class="feature__art" aria-hidden="true">${locationArt(selectedMap, 'feature')}<span class="feature__number">LOCATION ${indexOf(selectedMap)}</span></div>
             <div class="feature__info">
-              <div class="feature__eyebrow"><span>${card.difficulty.toUpperCase()} BREAK</span><span>${isOpeningMap ? 'FIRST IN LINE' : 'ON THE HORIZON'}</span></div>
+              <div class="feature__eyebrow"><span>${card.difficulty.toUpperCase()} BREAK</span><span>${available === 'free-surf' ? 'FREEPLAY' : available ? 'TUTORIAL' : 'LOCKED'}</span></div>
               <h2>${card.name}</h2>
               <p class="feature__region">${card.region}</p>
               <p class="feature__signature">${card.signature}</p>
-              <div class="feature__metrics"><span><small>SCORE RUN BEST</small><strong>${best?.toLocaleString() ?? '—'}</strong></span><span><small>MEDALS EARNED</small><strong>${earned} <i>/ ${goals.length}</i></strong></span></div>
-              <a class="feature__play-link" href="${playableUrl}">OPEN THE PLAYABLE CAMPAIGN <span aria-hidden="true">↗</span></a>
-              <div class="feature__status"><span>${isOpeningMap ? 'FIRST BREAK' : 'EXPLORE THE COAST'}</span><span>PREVIEW</span></div>
+              <div class="feature__metrics"><span><small>PERSONAL BEST</small><strong>${best?.toLocaleString() ?? '—'}</strong></span><span><small>MEDALS EARNED</small><strong>${earned} <i>/ ${goals.length}</i></strong></span></div>
+              <button type="button" class="feature__play-link" data-action="ride-${selectedMap}" ${available ? '' : 'disabled'}>${available === 'free-surf' ? 'SURF THIS BREAK' : available ? 'START TUTORIAL' : 'FINISH MAVERICKS TO UNLOCK'} <span aria-hidden="true">↗</span></button>
             </div>
           </section>
           <section class="breaks" aria-label="Surf locations">
             <div class="breaks__heading"><span>DESTINATIONS</span><span>SELECT TO PREVIEW</span></div>
             <ul class="break-list">${MAP_ORDER.map(mapButton).join('')}</ul>
-            <p class="breaks__foot">MORE THAN A POSTCARD <span aria-hidden="true">↗</span><br><small>Each break will have its own wave and riding style</small></p>
+            <p class="breaks__foot">MORE THAN A POSTCARD <span aria-hidden="true">↗</span><br><small>Each break has its own wave and riding style</small></p>
           </section>
         </div>
       </div>
     </main>`;
-  app!.querySelector<HTMLButtonElement>('#back-button')?.addEventListener('click', () => {
+  app.querySelector<HTMLButtonElement>('#back-button')?.addEventListener('click', () => {
     screen = 'title';
     render();
-    app!.querySelector<HTMLButtonElement>('#play-button')?.focus();
+    app.querySelector<HTMLButtonElement>('#play-button')?.focus();
   });
-  app!.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((button) => {
+  app.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((button) => {
     button.addEventListener('click', () => {
       selectedMap = button.dataset.map as MapId;
       render();
-      app!.querySelector<HTMLButtonElement>(`[data-map="${selectedMap}"]`)?.focus();
+      app.querySelector<HTMLButtonElement>(`[data-map="${selectedMap}"]`)?.focus();
     });
   });
 }
 
 function renderInfo(kicker: string, title: string, content: string): void {
-  app!.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
+  app.innerHTML = `<a class="skip-link" href="#main-content">Skip to content</a>
     <main class="info-page" id="main-content">
       <header class="atlas__header shell">
         ${brand()}
@@ -175,7 +177,7 @@ function renderInfo(kicker: string, title: string, content: string): void {
         ${content}
       </div>
     </main>`;
-  app!.querySelector<HTMLButtonElement>('#back-button')?.addEventListener('click', returnToTitle);
+  app.querySelector<HTMLButtonElement>('#back-button')?.addEventListener('click', returnToTitle);
 }
 
 function renderSettings(): void {
@@ -196,46 +198,46 @@ function renderSettings(): void {
     <div class="settings-grid">
       <fieldset class="setting-group"><legend>Picture</legend><p>Choose the level of detail that suits your device</p><div class="choice-row">${qualityButtons}</div></fieldset>
       <fieldset class="setting-group"><legend>Motion</legend><p>Reduce decorative movement and camera effects</p><label class="toggle-row" for="reduced-motion"><span>REDUCED MOTION</span><input type="checkbox" id="reduced-motion" ${settings.reducedMotion ? 'checked' : ''}><span class="toggle-row__track" aria-hidden="true"></span></label></fieldset>
-      <fieldset class="setting-group"><legend>Sound</legend><p>Set the volume for future ocean and game audio</p><label class="volume-row" for="volume"><span>MASTER VOLUME</span><output id="volume-value" for="volume">${percent}%</output></label><input type="range" id="volume" min="0" max="100" step="1" value="${percent}"><label class="toggle-row" for="muted"><span>MUTE AUDIO</span><input type="checkbox" id="muted" ${settings.muted ? 'checked' : ''}><span class="toggle-row__track" aria-hidden="true"></span></label></fieldset>
+      <fieldset class="setting-group"><legend>Sound</legend><p>Set the volume for ocean and game audio</p><label class="volume-row" for="volume"><span>MASTER VOLUME</span><output id="volume-value" for="volume">${percent}%</output></label><input type="range" id="volume" min="0" max="100" step="1" value="${percent}"><label class="toggle-row" for="muted"><span>MUTE AUDIO</span><input type="checkbox" id="muted" ${settings.muted ? 'checked' : ''}><span class="toggle-row__track" aria-hidden="true"></span></label></fieldset>
       <fieldset class="setting-group setting-group--colors"><legend>Ice board tint</legend><p>Earn medals to unlock more colors — the board always stays ice</p><div class="color-choices">${colors}</div></fieldset>
     </div>
     <div class="settings-danger"><div><strong>Start fresh</strong><p>Remove local records, medals, unlocks and settings</p></div><button type="button" id="reset-button">RESET PROGRESS</button></div>${resetConfirmation}`;
   renderInfo('MAKE IT YOURS', 'SETTINGS', content);
 
-  app!.querySelectorAll<HTMLButtonElement>('[data-quality]').forEach((button) => {
+  app.querySelectorAll<HTMLButtonElement>('[data-quality]').forEach((button) => {
     button.addEventListener('click', () => saveSettings({ quality: button.dataset.quality as Quality }, `[data-quality="${button.dataset.quality}"]`));
   });
-  app!.querySelector<HTMLInputElement>('#reduced-motion')?.addEventListener('change', (event) => {
+  app.querySelector<HTMLInputElement>('#reduced-motion')?.addEventListener('change', (event) => {
     saveSettings({ reducedMotion: (event.currentTarget as HTMLInputElement).checked }, '#reduced-motion');
   });
-  app!.querySelector<HTMLInputElement>('#muted')?.addEventListener('change', (event) => {
+  app.querySelector<HTMLInputElement>('#muted')?.addEventListener('change', (event) => {
     saveSettings({ muted: (event.currentTarget as HTMLInputElement).checked }, '#muted');
   });
-  const volume = app!.querySelector<HTMLInputElement>('#volume');
+  const volume = app.querySelector<HTMLInputElement>('#volume');
   volume?.addEventListener('input', () => {
-    const output = app!.querySelector<HTMLOutputElement>('#volume-value');
+    const output = app.querySelector<HTMLOutputElement>('#volume-value');
     if (output) output.value = `${volume.value}%`;
   });
   volume?.addEventListener('change', () => saveSettings({ masterVolume: Number(volume.value) / 100 }, '#volume'));
-  app!.querySelectorAll<HTMLButtonElement>('[data-board]').forEach((button) => {
+  app.querySelectorAll<HTMLButtonElement>('[data-board]').forEach((button) => {
     button.addEventListener('click', () => saveSettings({ boardColor: button.dataset.board }, `[data-board="${button.dataset.board}"]`));
   });
-  app!.querySelector<HTMLButtonElement>('#reset-button')?.addEventListener('click', () => {
+  app.querySelector<HTMLButtonElement>('#reset-button')?.addEventListener('click', () => {
     resetPending = true;
     renderSettings();
-    app!.querySelector<HTMLButtonElement>('#cancel-reset')?.focus();
+    app.querySelector<HTMLButtonElement>('#cancel-reset')?.focus();
   });
-  app!.querySelector<HTMLButtonElement>('#cancel-reset')?.addEventListener('click', () => {
+  app.querySelector<HTMLButtonElement>('#cancel-reset')?.addEventListener('click', () => {
     resetPending = false;
     renderSettings();
-    app!.querySelector<HTMLButtonElement>('#reset-button')?.focus();
+    app.querySelector<HTMLButtonElement>('#reset-button')?.focus();
   });
-  app!.querySelector<HTMLButtonElement>('#confirm-reset')?.addEventListener('click', () => {
+  app.querySelector<HTMLButtonElement>('#confirm-reset')?.addEventListener('click', () => {
     const next = progress.reset();
     settingsNotice = next.storageAvailable ? 'Progress reset' : 'Progress reset for this session';
     resetPending = false;
     renderSettings();
-    app!.querySelector<HTMLButtonElement>('#reset-button')?.focus();
+    app.querySelector<HTMLButtonElement>('#reset-button')?.focus();
   });
 }
 
@@ -245,47 +247,55 @@ function saveSettings(patch: Partial<GameSettings>, focusSelector: string): void
     settingsNotice = next.storageAvailable ? 'Settings saved' : 'Settings active for this session';
   } catch {
     settingsNotice = 'That setting could not be saved';
-=======
-function atlas(free=false) {
-  screen='atlas'; stopRide();
-  const {levelsCleared,bestRuns,earnedMedalIds}=snap();
-  mode=free && levelsCleared===5?'free-surf':'score-run';
-  const order=mode==='free-surf'?MAP_ORDER:campaign;
-  app.innerHTML=`<main class="map-select"><div class="map-select__inner">
-    <header>${button('← Title','title')}<h1>${mode==='free-surf'?'Freeplay':'Campaign'}</h1></header>
-    <ul class="map-grid">${order.map((id,i)=>{
-      const available=mode==='free-surf'||i<=levelsCleared;
-      const card=MAP_CARDS[id];
-      const best=bestRuns[id]?.[mode]?.score;
-      const medals=progress.challenges.filter(c=>c.mapId===id&&earnedMedalIds.includes(c.id)).length;
-      return `<li class="map-card map-card--${card.tone}"><button type="button" class="map-card__button" data-action="ride-${id}" ${available?'':'disabled'}>
-        <span class="map-card__preview">${locationArt(id)}</span><span class="map-card__body"><span class="map-card__top">${mode==='free-surf'?'Freeplay':i<levelsCleared?'Cleared':available?'Level '+(i+1):'Clear '+maps[campaign[i-1]].name}</span>
-        <strong>${maps[id].name}</strong><span class="map-card__region">${maps[id].region}</span>
-        <span class="map-card__signature">${mode==='free-surf'?card.signature:objectives[id]}</span>
-        <span class="map-card__stats">Best ${best===undefined?'—':number(best)} · ${medals}/3 medals</span></span></button></li>`;
-    }).join('')}</ul></div></main>`;
-}
-function hint(h:HudSnapshot | RunResult) {
-  if(mode==='free-surf') return 'Freeplay';
-  const exit=(h.cleanExitS??0).toFixed(1);
-  switch(selected) {
-    case 'mavericks':return `Clean landings  ${Math.min(2,h.cleanLandings)} / 2`;
-    case 'jbay':return `Best combo  ${number(h.bestCombo)} / 2,000`;
-    case 'pipeline':return `Clean barrel exit  ${exit} / 3 s`;
-    case 'teahupoo':return `Clean exit  ${exit} / 3.5 s · Score  ${number(h.score)} / 4,000`;
-    case 'nazare':return 'distanceLeftM' in h?`Ride between the buoys · ${number(h.distanceLeftM)} m`:objectives.nazare;
-    default:return '';
->>>>>>> 6d9e2030dc716d8734b4b8d1ca5085b74f55a3b1
   }
+  renderSettings();
+  app.querySelector<HTMLElement>(focusSelector)?.focus();
 }
-function showRide(id:MapId, free:boolean) {
+
+function returnToTitle(): void {
+  const previous = screen;
+  screen = 'title';
+  resetPending = false;
+  render();
+  app.querySelector<HTMLButtonElement>(previous === 'maps' ? '#play-button' : `[data-screen="${previous}"]`)?.focus();
+}
+
+function openScreen(next: Screen): void {
+  screen = next;
+  resetPending = false;
+  settingsNotice = '';
+  render();
+  app.querySelector<HTMLButtonElement>('#back-button')?.focus();
+}
+
+function render(): void {
+  document.documentElement.dataset.reducedMotion = String(progress.getSnapshot().settings.reducedMotion);
+  if (screen === 'title') renderTitle();
+  else if (screen === 'maps') renderMaps();
+  else if (screen === 'how') renderInfo('A QUICK FIELD GUIDE', 'HOW TO<br><span>PLAY</span>', howToPlayContent());
+  else if (screen === 'credits') renderInfo('THE PEOPLE BEHIND THE WAVE', 'CREDITS', creditsContent());
+  else if (screen === 'settings') renderSettings();
+}
+
+function tutorialHint(h: HudSnapshot): string {
+  const travelled = maps.mavericks.wave.rideLengthM - h.distanceLeftM;
+  if (h.state === 'barrel') return 'Follow the opening';
+  if (h.state === 'airborne') return 'Release the keys to line up your landing';
+  if (travelled < 64) return 'A climbs the face · D drops toward the flats';
+  if (travelled < 212) return 'Climb toward the curling lip · ease off to hold your line';
+  if (travelled < 330) return 'Hold Space and release to try a jump';
+  return 'Ride to the end of the wave to unlock Freeplay';
+}
+function showRide(id:MapId) {
   const {levelsCleared,settings}=snap();
-  if(free ? levelsCleared!==5 : !campaign.slice(0,levelsCleared+1).includes(id)) return;
-  stopRide(); selected=id; mode=free?'free-surf':'score-run'; screen='ride';
+  const nextMode = rideMode(id, levelsCleared);
+  if (!nextMode) return;
+  stopRide(); selectedMap=id; mode=nextMode; screen='ride';
+  const tutorial = mode === 'score-run';
   app.innerHTML=`<main class="ride"><div id="water"></div>
     <div class="run-head"><div class="readout"><small>${maps[id].name}</small><strong id="goal"></strong></div>
     <div class="actions"><span id="clock"></span>${button('Pause','pause')}</div></div>
-    <div class="run-bottom"><span class="score"><small>Score</small><strong id="score">0</strong><span id="combo"></span></span>
+    <div class="run-bottom"><span class="score"><small>${tutorial ? 'Wave remaining' : 'Score'}</small><strong id="score">—</strong><span id="combo"></span></span>
     <span id="callout"></span></div><div id="overlay"></div></main>`;
   try {
     session=createSurfSession({mount:byId('water'),map:maps[id],mode,seed:8,settings,
@@ -302,15 +312,16 @@ function showRide(id:MapId, free:boolean) {
 function onEvent(event:GameEvent) {
   if(event.type==='run-started') {
     previousTrick='';
-    lastCallout=rideTips[selected]+' '+instructions;
+    lastCallout=mode === 'free-surf' ? rideTips[selectedMap] : '';
     calloutUntil=performance.now()+9500;
   } else if(event.type==='hud' && screen==='ride') {
     const h=event.data;
     audio.update(h);
-    byId('goal').textContent=hint(h);
-    byId('clock').textContent=h.remainingS===null?'':Math.floor(Math.ceil(h.remainingS)/60)+':'+String(Math.ceil(h.remainingS)%60).padStart(2,'0');
-    byId('score').textContent=number(h.score);
-    byId('combo').textContent=h.pendingCombo?`+${number(h.pendingCombo)}  ·  ${h.multiplier}×`:'';
+    const tutorial = mode === 'score-run';
+    byId('goal').textContent=tutorial ? tutorialHint(h) : 'Freeplay';
+    byId('clock').textContent='';
+    byId('score').textContent=tutorial ? number(h.distanceLeftM) + ' m' : number(h.score);
+    byId('combo').textContent=!tutorial && h.pendingCombo ? `+${number(h.pendingCombo)}  ·  ${h.multiplier}×` : '';
     if (h.trickLabel !== previousTrick && (h.trickLabel.includes('landing') || ['Barrel exit', 'Driving bottom turn', 'Cutback'].includes(h.trickLabel))) {
       lastCallout = h.trickLabel;
       calloutUntil = performance.now() + 1650;
@@ -318,7 +329,7 @@ function onEvent(event:GameEvent) {
     previousTrick = h.trickLabel;
     const live=h.state==='airborne'?h.trickLabel:h.state==='barrel'?`In the barrel · ${h.barrelS.toFixed(1)} s`:'';
     byId('callout').textContent=live || (performance.now()<calloutUntil?lastCallout:'');
-  } else if(event.type==='score-banked') {
+  } else if(event.type==='score-banked' && mode==='free-surf') {
     lastCallout='Banked +'+number(event.points); calloutUntil=performance.now()+1200;
   } else if(event.type==='wipeout') {
     lastCallout=event.reason;calloutUntil=performance.now()+1350;
@@ -327,22 +338,23 @@ function onEvent(event:GameEvent) {
 function results(run:RunResult) {
   const record=progress.recordResult(run);
   screen='results'; stopRide();
-  const clear=clearedLevel(run), i=campaign.indexOf(selected);
-  const heading=mode==='free-surf'?'Session complete':clear?'Level cleared':'Try that wave again';
-  const detail=run.reason==='missed-exit'?'You missed the marked shoulder exit.':run.reason==='wipeout'?'The wave took you down.':hint(run);
-  app.innerHTML=`<main class="interlude"><section><p class="eyebrow">${maps[selected].name}</p><h1>${heading}</h1>
-    <p>${detail}</p><dl class="run-stats"><div><dt>Score</dt><dd>${number(run.score)}</dd></div>
+  const clear = finishedTutorial(run);
+  const heading = clear ? 'Freeplay unlocked' : mode === 'free-surf' ? 'Session complete' : 'Tutorial ended';
+  const detail = clear ? 'All six surf locations are open. Pick any break and ride as long as you like.' : '';
+  app.innerHTML=`<main class="interlude"><section><p class="eyebrow">${maps[selectedMap].name}</p><h1>${heading}</h1>
+    ${detail ? `<p>${detail}</p>` : ''}<dl class="run-stats"><div><dt>Score</dt><dd>${number(run.score)}</dd></div>
     <div><dt>Best combo</dt><dd>${number(run.bestCombo)}</dd></div><div><dt>Longest barrel</dt><dd>${run.longestBarrelS.toFixed(1)} s</dd></div>
     <div><dt>Clean landings</dt><dd>${run.cleanLandings}</dd></div></dl>
     ${record.newMedalIds.map(id=>`<p>Medal · ${progress.challenges.find(c=>c.id===id)?.label}</p>`).join('')}
     ${!record.snapshot.storageAvailable?'<p>Progress is available for this session only.</p>':''}
-    <div class="actions">${clear?button(i===4?'Enter Freeplay':'Next level',i===4?'free':'next',true):''}${button('Retry','retry',!clear)}${button('Locations','back')}</div></section></main>`;
+    <div class="actions">${button(clear ? 'Choose a freeplay location' : 'Locations','atlas',true)}
+    ${button('Surf again','retry')}</div></section></main>`;
   app.querySelector('button')?.focus();
 }
 function pause() {
   if(screen!=='ride'||!session) return;
   screen='paused';session.pause();audio.pause();
-  byId('overlay').innerHTML=`<section class="pause-card"><p class="eyebrow">${maps[selected].name}</p><h2>Paused</h2><p>${rideTips[selected]}</p><p>${instructions}</p>
+  byId('overlay').innerHTML=`<section class="pause-card"><p class="eyebrow">${maps[selectedMap].name}</p><h2>Paused</h2><p>${rideTips[selectedMap]}</p><p>${instructions}</p>
     <div class="actions">${button('Resume','resume',true)}${button('Restart run','retry')}${button(snap().settings.muted?'Sound off':'Sound on','mute')}
     ${mode==='free-surf'?button('Finish session','finish'):''}${button('Discard run','back')}</div></section>`;
   byId('overlay').querySelector('button')?.focus();
@@ -356,15 +368,15 @@ app.addEventListener('click',event=>{
   const target=(event.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');
   if(!target || target.disabled) return;
   const action=target.dataset.action!;
-  if(action.startsWith('ride-')) showRide(action.slice(5) as MapId,mode==='free-surf');
+  if(action.startsWith('ride-')) showRide(action.slice(5) as MapId);
   else switch(action) {
-    case 'title':title();break;
-    case 'atlas':atlas();break;
-    case 'back':atlas(mode==='free-surf');break;
-    case 'free':atlas(true);break;
-    case 'continue':showRide(campaign[Math.min(snap().levelsCleared,4)],false);break;
-    case 'next':showRide(campaign[campaign.indexOf(selected)+1],false);break;
-    case 'retry':showRide(selected,mode==='free-surf');break;
+    case 'atlas':
+    case 'back':
+      stopRide();
+      openScreen('maps');
+      break;
+    case 'continue':showRide('mavericks');break;
+    case 'retry':showRide(selectedMap);break;
     case 'pause':pause();break;
     case 'resume':resume();break;
     case 'finish':session?.finish();break;
@@ -378,8 +390,9 @@ window.addEventListener('keydown',e=>{
   if(e.key==='Escape' && !e.repeat) {
     if(screen==='ride') pause(); else if(screen==='paused') resume();
   }
-  if(screen==='results' && e.key.toLowerCase()==='r' && !e.repeat) showRide(selected,mode==='free-surf');
+  if(screen==='results' && e.key.toLowerCase()==='r' && !e.repeat) showRide(selectedMap);
 });
 window.addEventListener('blur',pause);
 document.addEventListener('visibilitychange',()=>{if(document.hidden) pause();});
-title();
+
+render();

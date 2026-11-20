@@ -26,6 +26,7 @@ import type { SurfSimulation } from './simulation';
 import type { WaveModel } from './wave';
 import { createSprayTexture, createWaterNormalMap } from './waterTexture';
 
+import { penguinBody, penguinBill, penguinFlipper, penguinTail, plumage, webbedFoot } from './penguin';
 import { breakingFoam, breakingWater } from './breakingWater';
 
 export class WaveVisual {
@@ -297,6 +298,7 @@ export class SurferVisual {
   readonly group = new Group();
   readonly boardColor: MeshStandardMaterial;
   private readonly body = new Group();
+  private readonly featherMap = plumage();
   private readonly flippers: Mesh[] = [];
   private readonly materials: Material[] = [];
   private readonly geometries: BufferGeometry[] = [];
@@ -367,41 +369,34 @@ export class SurferVisual {
       this.group.add(fin);
     }
 
-    const feathers = this.material('#17242b', 0.9);
-    const belly = this.material('#f3f5ed', 0.88);
-    const beakAndFeet = this.material('#e3a048', 0.65);
-    const eyes = this.material('#111c23', 0.35);
-    this.body.add(this.part(new SphereGeometry(1, 22, 16), feathers,
-      [0, 0.82, 0], [0.34, 0.56, 0.31]));
-    this.body.add(this.part(new SphereGeometry(1, 18, 14), belly,
-      [0, 0.84, 0.265], [0.25, 0.42, 0.085]));
-    this.body.add(this.part(new SphereGeometry(1, 20, 16), feathers,
-      [0, 1.46, 0.02], [0.27, 0.28, 0.27]));
-    this.body.add(this.part(new SphereGeometry(1, 14, 10), belly,
-      [0, 1.64, -0.07], [0.23, 0.065, 0.17]));
-    for (const side of [-1, 1]) {
-      this.body.add(this.part(new SphereGeometry(1, 12, 10), belly,
-        [side * 0.29, 0.84, -0.02], [0.055, 0.30, 0.16]));
-      const eyePatch = this.part(new SphereGeometry(1, 12, 10), belly,
-        [side * 0.125, 1.49, 0.235], [0.095, 0.12, 0.045]);
-      this.body.add(eyePatch);
-      this.body.add(this.part(new SphereGeometry(1, 10, 8), eyes,
-        [side * 0.125, 1.49, 0.278], [0.035, 0.05, 0.02]));
-      const flipper = this.part(new SphereGeometry(1, 14, 10), feathers,
-        [side * 0.39, 0.92, 0.015], [0.13, 0.36, 0.13]);
+    const coat = this.material('#ffffff', .63);
+    coat.map = this.featherMap;
+    this.body.add(this.part(penguinBody(), coat, [0,0,0]));
+    const charcoal = this.material('#263137', .62);
+    const eyes = this.material('#161715', .18);
+    const iris = this.material('#674f35', .28);
+    const catchlight = this.material('#f3eee2', .22);
+    const feet = this.material('#ae7048', .7);
+    const bill = this.material('#ffffff', .46);
+    bill.vertexColors = true;
+    this.body.add(this.part(penguinBill(), bill, [0,1.37,.308]));
+    for (const side of [-1,1]) {
+      this.body.add(this.part(new SphereGeometry(1,12,8), iris,
+        [side*.165,1.425,.246],[.028,.031,.031]));
+      this.body.add(this.part(new SphereGeometry(1,12,8), eyes,
+        [side*.181,1.426,.252],[.020,.024,.024]));
+      this.body.add(this.part(new SphereGeometry(1,8,6), catchlight,
+        [side*.198,1.435,.260],[.006,.006,.006]));
+      const flipper = this.part(penguinFlipper(), charcoal, [side*.292,1.00,.015]);
       this.flippers.push(flipper);
       this.body.add(flipper);
-      this.body.add(this.part(new SphereGeometry(1, 12, 8), beakAndFeet,
-        [side * 0.16, 0.22, side < 0 ? 0.27 : -0.19], [0.15, 0.055, 0.23]));
+      const foot = this.part(webbedFoot(), feet, [side*.15,.205,side*.12+.015]);
+      foot.rotation.y = side*.20;
+      this.group.add(foot);
+      this.group.add(this.part(new SphereGeometry(1,12,8), feet,
+        [side*.136,.249,side*.08-.045],[.049,.072,.050]));
     }
-    const beak = this.part(new ConeGeometry(0.105, 0.25, 5), beakAndFeet,
-      [0, 1.34, 0.31]);
-    beak.rotation.x = Math.PI / 2;
-    this.body.add(beak);
-    const tail = this.part(new ConeGeometry(0.12, 0.28, 5), feathers,
-      [0, 0.47, -0.33]);
-    tail.rotation.x = -Math.PI / 2;
-    this.body.add(tail);
+    this.body.add(this.part(penguinTail(), charcoal, [0,.27,-.20]));
     this.group.add(this.body);
 
     const count = 70;
@@ -438,18 +433,20 @@ export class SurferVisual {
 
   update(sim: SurfSimulation, settings: GameSettings): void {
     const state: RiderState = sim.state;
-    const crouch = state === 'barrel' ? 0.25 : state === 'airborne' ? -0.08 :
-      state === 'wipeout' ? 0.6 : Math.max(0, (sim.speedMps - 14) * 0.012);
-    this.body.position.y = -crouch * 0.14 - sim.jumpLoad * .18 - sim.landingPulse * .19 - sim.airTuck * .24;
-    this.body.scale.y = 1 - .10 * sim.jumpLoad - .09 * sim.landingPulse - (state === 'barrel' ? .05 : 0) - .21 * sim.airTuck;
-    this.body.rotation.x = state === 'wipeout' ? 0.75 : state === 'airborne' ? -0.1 :
-      Math.max(-0.18, Math.min(0.12, sim.lateralMps * 0.02));
-    this.body.rotation.z = state === 'wipeout' ? 0.4 : state === 'airborne' ? 0 :
-      Math.max(-0.22, Math.min(0.22, -sim.lateralMps * sim.wave.direction * 0.028));
-    const flipperLift = state === 'airborne' || sim.wallRideActive ? .48 - .64 * sim.airTuck :
-      state === 'barrel' ? 0.22 : 0.12;
-    this.flippers[0].rotation.z = 0.35 + flipperLift;
-    this.flippers[1].rotation.z = -0.35 - flipperLift;
+    const compression = Math.min(.37, .09 * sim.jumpLoad + .16 * sim.landingPulse +
+      .18 * sim.airTuck + (state === 'barrel' ? .095 : 0));
+    this.body.scale.set(1 + compression * .12, 1 - compression, 1 + compression * .1);
+    this.body.position.y = compression * .20;
+    const bank = Math.max(-1, Math.min(1, sim.lateralMps * sim.wave.direction / 7));
+    this.body.rotation.x = state === 'wipeout' ? .78 : .09 + compression * .55;
+    this.body.rotation.z = state === 'wipeout' ? .4 : -bank * .19;
+    const spread = state === 'airborne' || sim.wallRideActive ? .90 - sim.airTuck * .6 :
+      .29 + Math.abs(bank) * .33 + sim.landingPulse * .25;
+    for (let i=0; i<this.flippers.length; i++) {
+      const side = i === 0 ? -1 : 1;
+      this.flippers[i].rotation.z = side * spread - bank * .23;
+      this.flippers[i].rotation.x = .12 + side * bank * .20;
+    }
     const positions = this.sprayGeometry.getAttribute('position');
     const count = settings.quality === 'low' ? 20 : settings.quality === 'medium' ? 42 : 70;
     const active = state !== 'airborne' && sim.speedMps > 3;
@@ -483,5 +480,6 @@ export class SurferVisual {
     this.sprayGeometry.dispose();
     this.sprayMaterial.dispose();
     this.sprayTexture.dispose();
+    this.featherMap.dispose();
   }
 }
