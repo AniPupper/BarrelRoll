@@ -4,6 +4,8 @@ A single-player, 3D arcade surfing game by Anika and Teddy. Ride a penguin on an
 
 ## Play the current build
 
+**[Play BarrelRoll on ChatGPT Sites](https://barrelroll-surf.tk7272.chatgpt.site/)**. The hosted game currently has owner-only access. Other players can use the offline build below.
+
 **[Download the playable BarrelRoll HTML](https://github.com/AniPupper/BarrelRoll/blob/main/public/play.html)**. On GitHub, choose **Download raw file**, then open `play.html` in a desktop browser with WebGL 2 support. The GitHub file view shows the source; it does not run the game.
 
 The downloadable game includes all six breaks and works offline. The game saves progress in the browser you use to play.

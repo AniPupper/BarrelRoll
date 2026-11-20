@@ -3,7 +3,7 @@ import test from 'node:test';
 import { SurfSimulation } from '../../src/engine/simulation';
 import { createTrickController } from '../../src/engine/tricks';
 import { maps } from '../../src/maps';
-import type { ControlFrame } from '../../src/engine/input';
+import { GameplayInput, type ControlFrame } from '../../src/engine/input';
 
 function ride(face: number) {
   // An open section lets us compare two input lines on the same part of a wave.
@@ -112,4 +112,77 @@ test('a sustained uphill carve finds the tube, and a downhill carve leaves it', 
       assert.equal(sim.metrics.wipeouts, 0, map.name);
     }
   }
+});
+
+
+test('full tuck doubles cruising speed and a countersteer bites within a quarter second', () => {
+  const open = { ...maps.nazare, spawn: { along01: .06, face01: .48 } };
+  function run(key?: string) {
+    const sim = new SurfSimulation(open, 'free-surf', 8, createTrickController(), () => {});
+    const input = new GameplayInput();
+    sim.start();
+    if (key) input.press(key, true);
+    for (let i = 0; i < 150; i++) sim.step(input.frame());
+    return { sim, input };
+  }
+  const cruise = run(), fast = run('w'), brake = run('s');
+  assert.ok(fast.sim.speedMps > cruise.sim.speedMps * 1.9);
+  assert.ok(brake.sim.speedMps < cruise.sim.speedMps * .56);
+  cruise.input.press('a', true);
+  for (let i = 0; i < 27; i++) cruise.sim.step(cruise.input.frame());
+  assert.ok(Math.atan2(cruise.sim.lateralMps, cruise.sim.speedMps) > .74);
+  cruise.input.release('a');
+  cruise.input.press('d', true);
+  for (let i = 0; i < 14; i++) cruise.sim.step(cruise.input.frame());
+  assert.ok(cruise.sim.lateralMps < -cruise.sim.speedMps * .65);
+});
+
+test('the wall brake parks on the ceiling, a reverse carve unwinds, and Space pops off it', () => {
+  const sim = new SurfSimulation(maps.mavericks, 'free-surf', 8, createTrickController(), () => {});
+  const input = new GameplayInput();
+  sim.start();
+  input.press('a', true);
+  function tick() { input.advance(1 / 60, true); sim.step(input.frame()); }
+  for (let i = 0; i < 600 && sim.state !== 'barrel'; i++) tick();
+  assert.equal(sim.state, 'barrel');
+  input.release('a');
+  input.press('Shift', true);
+  const upY = () => 1 - 2 * (sim.orientation.x ** 2 + sim.orientation.z ** 2);
+  for (let i = 0; i < 140 && upY() > -.80; i++) tick();
+  assert.ok(upY() < -.8);
+  input.press('s', true);
+  for (let i = 0; i < 30; i++) tick();
+  const parkedAngle = sim.wallRideAngle, start = sim.alongM;
+  for (let i = 0; i < 18; i++) tick();
+  assert.ok(upY() < -.50);
+  assert.ok(Math.abs(sim.wallRideAngle - parkedAngle) < .02);
+  assert.ok(sim.alongM > start + 1, 'still moving down the wave');
+  input.release('s');
+  input.press('d', true);
+  for (let i = 0; i < 12; i++) tick();
+  assert.ok(sim.wallRideAngle < parkedAngle - .2);
+  input.press(' ', true);
+  for (let i = 0; i < 10; i++) tick();
+  input.release(' ');
+  tick();
+  assert.equal(sim.state, 'airborne');
+  assert.equal(sim.wallRideActive, false);
+  assert.ok(sim.activeAirId);
+});
+
+test('a keyboard side roll can be stopped, landed and credited', () => {
+  const sim = ride(.35), input = new GameplayInput();
+  input.press(' ', true);
+  for (let i = 0; i < 38; i++) { input.advance(1 / 60, true); sim.step(input.frame()); }
+  input.release(' ');
+  sim.step(input.frame());
+  assert.equal(sim.state, 'airborne');
+  input.beginAir();
+  input.press('ArrowRight', false);
+  for (let i = 0; i < 45; i++) sim.step(input.frame());
+  input.release('ArrowRight');
+  for (let i = 0; i < 90 && sim.state === 'airborne'; i++) sim.step(input.frame());
+  assert.equal(sim.state, 'surfing');
+  assert.match(sim.trickLabel, /side roll · Clean landing/);
+  assert.ok(sim.score.pendingCombo >= 700);
 });
