@@ -79,8 +79,8 @@ for (const approach of ['early', 'late'] as const) {
       assert.ok(sim.metrics.longestBarrelS > .65, map.name);
       visual.dispose();
     }
-  }
-});
+  });
+}
 
 
 test('direct steering gives a visible full-speed loop in either direction on every barreling map', () => {
