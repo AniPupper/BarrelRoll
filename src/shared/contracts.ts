@@ -109,6 +109,7 @@ export type LandingQuality = 'clean' | 'sketchy' | 'wipeout';
 
 export interface TrickInput {
   tucked?: boolean;
+  rollAxis?: -1 | 0 | 1;
   spinAxis: -1 | 0 | 1;
   flipAxis: -1 | 0 | 1;
 }
